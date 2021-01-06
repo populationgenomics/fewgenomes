@@ -69,9 +69,10 @@ rule overlap_with_available_data:
             # if any(subdir.endswith('sequence_read/') for subdir in subdirs):
             sample_names_with_fastq.append(sample_dirs[i].split('/')[-2])
 
-        df = pd.read_tsv(input.ped)
+        df = pd.read_csv(input.ped, sep='\t')
+        print(df)
         df = df[df['Individual.ID'].isin(sample_names_with_fastq)]
-        df.to_csv(output.ped, sep='\t', index_label=False)
+        df.to_csv(output.ped, sep='\t', index=False)
 
 rule select_few_samples:
     input:
@@ -81,16 +82,16 @@ rule select_few_samples:
     run:
         print(f'Selecting {n} samples...')
         df = pd.read_csv(input.ped, sep='\t')
-        ceu_family_cond = df['Sample'].isin(DEFAULT_INCLUDE)
+        ceu_family_cond = df['Individual.ID'].isin(DEFAULT_INCLUDE)
         df = pd.concat([
             df[ceu_family_cond],
             df[~ceu_family_cond].sample(n - 3, random_state=1)
         ])
-        df.to_csv(output.ped, sep='\t', index_label=False)
+        df.to_csv(output.ped, sep='\t', index=False)
 
 rule make_warp_inputs:
     input:
-        csv = rules.select_few_samples.output.ped,
+        ped = rules.select_few_samples.output.ped,
         json = WARP_REF_INPUT_JSON,
     output:
         expand(os.path.join(WARP_INPUTS_DIR, '{sample}.json'), sample=DEFAULT_INCLUDE)
@@ -102,10 +103,10 @@ rule make_warp_inputs:
         with open(input.json) as fh:
             refs_data = json.load(fh)
 
-        df = pd.read_csv(input.csv)
+        df = pd.read_csv(input.ped, sep='\t')
 
         for (_, row), _ in zip(df.iterrows(), progressbar.progressbar(range(len(df)))):
-            sample = row['Sample']
+            sample = row['Individual.ID']
 
             print(f'Finding fastqs for {sample}')
             cmd = f'gsutil ls "{params.gs_data_base_url}/{sample}/sequence_read/*_*.filt.fastq.gz"'
