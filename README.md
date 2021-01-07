@@ -23,13 +23,17 @@ cromwell -Dconfig.file=workflow/cromwell.conf run \
     --options workflow/options.json
 ```
 
-## 50-sample MT file for QC testing
+## gnomAD Matrix Table subset
 
-To test vcf combiner and Hail QC, we extracted 50 samples from gs://gcp-public-data--gnomad/release/3.1/mt/genomes/gnomad.genomes.v3.1.hgdp_1kg_subset_dense.mt/ using script `hail_subset_gnomad.py`
+Script `hail_subset_gnomad.py` subsets the gnomAD matrix table (`gs://gcp-public-data--gnomad/release/3.1/mt/genomes/gnomad.genomes.v3.1.hgdp_1kg_subset_dense.mt/`) to the samples in the test dataset. To run it, upload your dataset PED file as `gs://playground-us-central1/cpg-fewgenomes/samples.ped` and submit the script into Hail Batch:
 
 ```
+gsutil cp datasets/50genomes/samples.ped gs://playground-us-central1/cpg-fewgenomes/samples.ped
+
 hailctl dataproc start cpg-fewgenomes --region us-central1 --zone us-central1-a --max-age 12h
 hailctl dataproc submit cpg-fewgenomes hail_subset_gnomad.py --region us-central1 --zone us-central1-a
 hailctl dataproc stop cpg-fewgenomes
 ```
+
+
 
