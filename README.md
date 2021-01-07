@@ -14,28 +14,33 @@ A [toy dataset](datasets/toy/samples.ped) of 6 samples ended up containing exome
 snakemake -j1 -p --config n=6 input_type=exome_bam dataset_name=toy
 ```
 
-A larger [50-sample dataset](datasets/50genomes/samples.ped) ended up containing genomes from 48 families of 21 ancesteies with a roughly equal male/female distribution. To generate it:
+A larger [50-sample dataset](datasets/50genomes/samples.ped) ended up containing genomes from 48 families of 18 ancesteies with a roughly equal male/female distribution. To generate it:
 
 ```
 snakemake -j1 -p --config n=50 input_type=wgs_bam dataset_name=50genomes
 ```
 
-The workflow `snakefile` pulls the 1000genomes project metadata, overlaps it with the data available at `gs://genomics-public-data/ftp-trace.ncbi.nih.gov/1000genomes/ftp/phase3/data/` according to the requested `input_type` (options: `wgs_fastq`, `wgs_bam`, `wgs_bam_highcov`, `exome_bam`), selects the required number of samples, and generates inputs for the germline variant calling [WDL pipeline](https://github.com/populationgenomics/warp/blob/start_from_mapped_bam/pipelines/broad/dna_seq/germline/single_sample/) which is built on top of Broad WARP workflows.
+These scripts run the workflow [Snakefile](Snakefile), which:
+1. pulls the 1000genomes project metadata from [the 1000genomes FTP](ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/),
+2. overlaps it with the data available at `gs://genomics-public-data/ftp-trace.ncbi.nih.gov/1000genomes/ftp/phase3/data/` according to the requested `input_type` (options: `wgs_fastq`, `wgs_bam`, `wgs_bam_highcov`, `exome_bam`),
+3. selects a subset of the requested number of samples,
+4. generates inputs for the germline variant calling [WDL workflow](https://github.com/populationgenomics/warp/blob/start_from_mapped_bam/pipelines/broad/dna_seq/germline/single_sample/), which is built on top of [Broad WARP](https://github.com/broadinstitute/warp/),
+5. generates a PED file for the subset.
 
-To set up the environment, run:
+To run the worklofw, first set up the environment with:
 
 ```
 conda env create -n fewgenomes -f environment.yml
 ```
 
-The WDL inputs are written into `datasets/<dataset_name>/<input_type>/`, and can be used to execute a pipeline to generate GVCFs:
+The WDL inputs are written into `datasets/<dataset_name>/<input_type>/`, and can be used along with Cromwell configs, to execute a pipeline on Google Cloud to generate GVCFs:
 
 ```
 conda install cromwell==54
 git clone https://github.com/populationgenomics/warp warp
 SAMPLE=NA12878
 cromwell -Dconfig.file=cromwell/cromwell.conf run \
-    warp/pipelines/broad/dna_seq/germline/single_sample/wgs/ExomeFromBam.wdl \
+    warp/pipelines/broad/dna_seq/germline/single_sample/exome/ExomeFromBam.wdl \
     --inputs datasets/toy/exome_bam/${SAMPLE}.json \
     --options cromwell/options.json
 ```
