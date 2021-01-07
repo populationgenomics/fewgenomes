@@ -19,13 +19,13 @@ REFS_INPUT_WGSFROMBAM_JSON = 'resources/warp_refs_wgsfrombam.json'
 REFS_INPUT_WGSFROMFASTQ_JSON = 'resources/warp_refs_wgsfromfastq.json'
 REFS_INPUT_EXOMEFROMBAM_JSON = 'resources/warp_refs_exomefrombam.json'
 
-# Including two trios for testing the relatedness checks
+# Including a platinum genome NA12878, and one full trio for testing
+# the relatedness checks
 DEFAULT_INCLUDE = [
-    'NA12878', 'NA12891', 'NA12892',
-    'NA19238', 'NA19239', 'NA19240',
+    'NA12878', 'NA19238', 'NA19239', 'NA19240',
 ]
 
-WARP_INPUTS_DIR = 'warp_inputs/'
+DATASETS_DIR = 'datasets/'
 
 n = config.get('n', 50)  # the number of samples to select
 assert n >= len(DEFAULT_INCLUDE)
@@ -39,10 +39,15 @@ INPUT_TYPES_TO_FOLDER_NAME = {
 input_type = config.get('input_type')
 assert input_type in INPUT_TYPES_TO_FOLDER_NAME
 
+assert 'dataset_name' in config, \
+    'Specify dataset_name with snakemake --config dataset_name=NAME'
+dataset_name = config['dataset_name']
+
 
 rule all:
     input:
-        dynamic(os.path.join(WARP_INPUTS_DIR, input_type, '{sample}.json'))
+        dynamic(os.path.join(DATASETS_DIR, dataset_name,
+            input_type,'{sample}.json'))
 
 
 rule get_ped:
@@ -116,7 +121,7 @@ rule select_few_samples:
     input:
         ped = rules.overlap_with_available_data.output.ped
     output:
-        ped = f'work/G1K_samples.with_gs_data.selected{n}.ped'
+        ped = os.path.join(DATASETS_DIR, dataset_name, 'samples.ped')
     params:
         input_type = input_type
     run:
@@ -137,10 +142,10 @@ rule make_warp_inputs:
         refs_wgsfromfastq_json = REFS_INPUT_WGSFROMFASTQ_JSON,
         refs_exomefrombam_json = REFS_INPUT_EXOMEFROMBAM_JSON,
     output:
-        dynamic(os.path.join(WARP_INPUTS_DIR, input_type, '{sample}.json'))
+        dynamic(os.path.join(DATASETS_DIR, dataset_name, input_type,'{sample}.json'))
     params:
         gs_data_base_url = GS_1GK_DATA_BASE_URL,
-        warp_inputs_dir = WARP_INPUTS_DIR,
+        dataset_dir = os.path.join(DATASETS_DIR, dataset_name),
         input_type = input_type
     run:
         print(f'Finding inputs and generating WARP input files...')
@@ -198,7 +203,6 @@ rule make_warp_inputs:
                 )
                 data.update(refs_wgsfromfastq_data)
 
-            json_fpath = os.path.join(params.warp_inputs_dir,
-                input_type, f'{sample}.json')
+            json_fpath = os.path.join(params.dataset_dir, input_type, f'{sample}.json')
             with open(json_fpath, 'w') as out:
                 json.dump(data, out, indent=4)

@@ -1,26 +1,43 @@
-# A test dataset for continuous evaluation of single-sample and join variant calling analysis
+# Fewgenomes
+
+Preparing a test dataset for continuous evaluation of single-sample and join variant calling analysis
 
 ## Sample selection
 
-We picked 3 samples from the CEPH 1463 family (NA12878, NA12891, NA12892), and added 47 samples randomly selected from 47 different families from the 1000genomes project, for which there is raw read data available at Google public genomics buckets (`gs://genomics-public-data/ftp-trace.ncbi.nih.gov/1000genomes/ftp/phase3/data/<sample>/sequence_read/*.fastq.gz`). Selected samples ended up from 21 ancestries, and with a roughly equal male/female distribution. 
+As a baseline, we picked 1 trio from the 1000genomes project (NA19238, NA19239, NA19240) of the YRI ancestry, as well NA12878 of CEU ancestry as it's a genome with a validated truth set.
 
-Script `prep_dataset.py` pulls a the 1000genomes project metadata spreadsheet, selects samples following the criteria above, and generates inputs for the single-sample WGS germline variant calling [WDL pipeline](https://github.com/populationgenomics/warp/blob/start_from_mapped_bam/pipelines/broad/dna_seq/germline/single_sample/wgs/WGSFromFastq.wdl), based on Broad's WARP.
+One top of that, we randomly selected samples from different families and ancestries from the 1000genomes project, as long as there is data available at the Google public genomics bucket: (`gs://genomics-public-data/ftp-trace.ncbi.nih.gov/1000genomes/ftp/phase3/data/`). 
+
+A [toy dataset](datasets/toy/samples.ped) of 6 samples ended up containing exomes for individuals from 4 families of 3 ancestries, with 50% females and 50% males. To generate it:
 
 ```
-pip install click pandas google-cloud-storage==1.25.0 ngs-utils==2.8.7
-python prep_dataset.py
+snakemake -j1 -p --config n=6 input_type=exome_bam dataset_name=toy
 ```
 
-The WDL inputs are written into the `workflow/inputs` folder, and can be used to execute a pipeline to generate GVCFs.
+A larger [50-sample dataset](datasets/50genomes/samples.ped) ended up containing genomes from 48 families of 21 ancesteies with a roughly equal male/female distribution. To generate it:
+
+```
+snakemake -j1 -p --config n=50 input_type=wgs_bam dataset_name=50genomes
+```
+
+The workflow `snakefile` pulls the 1000genomes project metadata, overlaps it with the data available at `gs://genomics-public-data/ftp-trace.ncbi.nih.gov/1000genomes/ftp/phase3/data/` according to the requested `input_type` (options: `wgs_fastq`, `wgs_bam`, `wgs_bam_highcov`, `exome_bam`), selects the required number of samples, and generates inputs for the germline variant calling [WDL pipeline](https://github.com/populationgenomics/warp/blob/start_from_mapped_bam/pipelines/broad/dna_seq/germline/single_sample/) which is built on top of Broad WARP workflows.
+
+To set up the environment, run:
+
+```
+conda env create -n fewgenomes -f environment.yml
+```
+
+The WDL inputs are written into `datasets/<dataset_name>/<input_type>/`, and can be used to execute a pipeline to generate GVCFs:
 
 ```
 conda install cromwell==54
-git clone https://github.com/populationgenomics/warp workflow/warp
-SAMPLE=HG00103
-cromwell -Dconfig.file=workflow/cromwell.conf run \
-    workflow/warp/pipelines/broad/dna_seq/germline/single_sample/wgs/WGSFromFastq.wdl \
-    --inputs workflow/inputs/${SAMPLE}.json \
-    --options workflow/options.json
+git clone https://github.com/populationgenomics/warp warp
+SAMPLE=NA12878
+cromwell -Dconfig.file=cromwell/cromwell.conf run \
+    warp/pipelines/broad/dna_seq/germline/single_sample/wgs/ExomeFromBam.wdl \
+    --inputs datasets/toy/exome_bam/${SAMPLE}.json \
+    --options cromwell/options.json
 ```
 
 ## gnomAD Matrix Table subset

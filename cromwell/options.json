@@ -7,4 +7,3 @@
     "final_call_logs_dir":    "gs://playground-au/warp/executions/call_logs",
     "final_workflow_outputs_dir": "gs://playground-au/warp/outputs"
 }
-

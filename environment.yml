@@ -1,4 +1,4 @@
-name: cpg-fewgenomes
+name: fewgenomes
 
 dependencies:
   - snakemake-minimal
