@@ -14,7 +14,7 @@ A [toy dataset](datasets/toy/samples.ped) of 6 samples ended up containing exome
 snakemake -j1 -p --config n=6 input_type=exome_bam dataset_name=toy
 ```
 
-A larger [50-sample dataset](datasets/50genomes/samples.ped) ended up containing genomes from 48 families of 18 ancesteies with a roughly equal male/female distribution. To generate it:
+A larger [50-sample dataset](datasets/50genomes/samples.ped) ended up containing genomes from 48 families of 18 ancestries with a roughly equal male/female distribution. To generate it:
 
 ```
 snakemake -j1 -p --config n=50 input_type=wgs_bam dataset_name=50genomes
@@ -56,6 +56,5 @@ hailctl dataproc start cpg-fewgenomes --region us-central1 --zone us-central1-a 
 hailctl dataproc submit cpg-fewgenomes hail_subset_gnomad.py --region us-central1 --zone us-central1-a
 hailctl dataproc stop cpg-fewgenomes
 ```
-
 
 
