@@ -49,7 +49,7 @@ cromwell -Dconfig.file=cromwell.conf run \
 
 ## gnomAD Matrix Table subset
 
-Script `hail_subset_gnomad.py` subsets the gnomAD matrix table (`gs://gcp-public-data--gnomad/release/3.1/mt/genomes/gnomad.genomes.v3.1.hgdp_1kg_subset_dense.mt/`) to the samples in the test dataset. To run it, upload your dataset PED file as `gs://playground-us-central1/cpg-fewgenomes/samples.ped` and submit the script into Hail Batch:
+Script `hail_subset_gnomad.py` subsets the gnomAD matrix table (`gs://gcp-public-data--gnomad/release/3.1/mt/genomes/gnomad.genomes.v3.1.hgdp_1kg_subset_dense.mt/`) to the samples in the test dataset. To run it, upload your dataset PED file as `gs://playground-us-central1/cpg-fewgenomes/samples.ped` and submit the script to a Hail Dataproc cluster:
 
 ```
 gsutil cp datasets/50genomes/samples.ped gs://playground-us-central1/cpg-fewgenomes/samples.ped
@@ -58,5 +58,4 @@ hailctl dataproc start cpg-fewgenomes --region us-central1 --zone us-central1-a 
 hailctl dataproc submit cpg-fewgenomes hail_subset_gnomad.py --region us-central1 --zone us-central1-a
 hailctl dataproc stop cpg-fewgenomes
 ```
-
 
