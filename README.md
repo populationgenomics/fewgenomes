@@ -27,7 +27,7 @@ These scripts run the workflow [Snakefile](Snakefile), which:
 4. generates inputs for the germline variant calling [WDL workflow](https://github.com/populationgenomics/warp/blob/start_from_mapped_bam/pipelines/broad/dna_seq/germline/single_sample/), which is built on top of [Broad WARP](https://github.com/broadinstitute/warp/),
 5. generates a PED file for the subset.
 
-To run the worklofw, first set up the environment with:
+To run the workflow, first set up the environment with:
 
 ```
 conda env create -n fewgenomes -f environment.yml
