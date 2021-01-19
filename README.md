@@ -36,13 +36,15 @@ conda env create -n fewgenomes -f environment.yml
 The WDL inputs are written into `datasets/<dataset_name>/<input_type>/`, and can be used along with Cromwell configs, to execute a pipeline on Google Cloud to generate GVCFs:
 
 ```
-conda install cromwell==54
-git clone https://github.com/populationgenomics/warp warp
+conda install cromwell==55
+git clone https://github.com/populationgenomics/warp
+git clone https://github.com/populationgenomics/cromwell-configs
+# edit tempaltes in `cromwell-configs` to replace <project> and <bucket>, and save as `cromwell.conf` and `options.json`
 SAMPLE=NA12878
-cromwell -Dconfig.file=cromwell/cromwell.conf run \
+cromwell -Dconfig.file=cromwell.conf run \
     warp/pipelines/broad/dna_seq/germline/single_sample/exome/ExomeFromBam.wdl \
     --inputs datasets/toy/exome_bam/${SAMPLE}.json \
-    --options cromwell/options.json
+    --options options.json
 ```
 
 ## gnomAD Matrix Table subset
