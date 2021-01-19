@@ -39,7 +39,7 @@ The WDL inputs are written into `datasets/<dataset_name>/<input_type>/`, and can
 conda install cromwell==55
 git clone https://github.com/populationgenomics/warp
 git clone https://github.com/populationgenomics/cromwell-configs
-# edit tempaltes in `cromwell-configs` to replace <project> and <bucket>, and save as `cromwell.conf` and `options.json`
+# edit templates in `cromwell-configs` to replace <project> and <bucket>, and save as `cromwell.conf` and `options.json`
 SAMPLE=NA12878
 cromwell -Dconfig.file=cromwell.conf run \
     warp/pipelines/broad/dna_seq/germline/single_sample/exome/ExomeFromBam.wdl \
@@ -58,4 +58,3 @@ hailctl dataproc start cpg-fewgenomes --region us-central1 --zone us-central1-a 
 hailctl dataproc submit cpg-fewgenomes hail_subset_gnomad.py --region us-central1 --zone us-central1-a
 hailctl dataproc stop cpg-fewgenomes
 ```
-
