@@ -1,6 +1,6 @@
 # Fewgenomes
 
-Preparing a test dataset for continuous evaluation of single-sample and join variant calling analysis
+Preparing a test dataset for continuous evaluation of single-sample and joint variant calling analysis.
 
 ## Sample selection
 
