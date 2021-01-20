@@ -1,0 +1,8 @@
+name: fewgenomes
+
+dependencies:
+  - snakemake-minimal
+  - pandas
+  - google-cloud-sdk
+  - google-cloud-storage
+  - progressbar2
