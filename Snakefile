@@ -19,11 +19,13 @@ GS_1GK_DATA_BASE_URL = 'gs://genomics-public-data/' \
 DEFAULT_INCLUDE = [
     'NA12878', 'NA19238', 'NA19239', 'NA19240',
 ]
-
 DATASETS_DIR = 'datasets/'
 
-n = config.get('n', 50)  # the number of samples to select
-assert n >= len(DEFAULT_INCLUDE)
+samples_n = config.get('n')  # the number of samples to select
+samples = config.get('samples', '').split(',')
+assert samples_n or samples
+if samples_n:
+    assert samples_n >= len(DEFAULT_INCLUDE)
 
 INPUT_TYPES_TO_FOLDER_NAME = {
     'wgs_fastq': 'sequence_read',
@@ -47,7 +49,10 @@ DATASET = config['dataset_name']
 
 rule all:
     input:
-        dynamic(os.path.join(DATASETS_DIR, DATASET, INPUT_TYPE,'{sample}.json'))
+        single_sample_warp_inputs = \
+            dynamic(os.path.join(DATASETS_DIR, DATASET, INPUT_TYPE, '{sample}.json')),
+        multi_sample_warp_input = \
+            os.path.join(DATASETS_DIR, DATASET, f'{DATASET}-{INPUT_TYPE}.json')
 
 
 rule get_warp_input_json_tmpl:
@@ -56,7 +61,8 @@ rule get_warp_input_json_tmpl:
     params:
         workflow_name = INPUT_TYPES_TO_WORKFLOW_NAME.get(INPUT_TYPE)
     shell:
-        'wget https://github.com/populationgenomics/cromwell-configs/blob/main/warp-inputs/{params.workflow_name}-inputs.json'
+        'wget https://raw.githubusercontent.com/populationgenomics/cromwell-configs/'
+        'main/warp-inputs/{params.workflow_name}-inputs.json'
         ' -O {output.json}'
 
 
@@ -135,33 +141,32 @@ rule select_few_samples:
     params:
         input_type = INPUT_TYPE
     run:
-        print(f'Selecting {n} samples...')
         df = pd.read_csv(input.ped, sep='\t')
         df = df[df[INPUT_TYPES_TO_FOLDER_NAME[params.input_type]] == True]
-        default_sample_cond = df['Individual.ID'].isin(DEFAULT_INCLUDE)
-        df = pd.concat([
-            df[default_sample_cond],
-            df[~default_sample_cond].sample(n - len(DEFAULT_INCLUDE), random_state=1)
-        ])
+        if samples_n:
+            default_sample_cond = df['Individual.ID'].isin(DEFAULT_INCLUDE)
+            print(f'Selecting {samples_n} samples...')
+            df = pd.concat([
+                df[default_sample_cond],
+                df[~default_sample_cond].sample(samples_n - len(DEFAULT_INCLUDE), 
+                    random_state=1)
+            ])
+        else:
+            df = df[df['Individual.ID'].isin(samples)]
         df.to_csv(output.ped, sep='\t', index=False)
 
-rule make_warp_inputs:
+rule make_sample_map:
     input:
-        ped = rules.select_few_samples.output.ped,
-        warp_input_json_tmpl = rules.get_warp_input_json_tmpl.output.json
+        ped = rules.select_few_samples.output.ped
     output:
-        dynamic(os.path.join(DATASETS_DIR, DATASET, INPUT_TYPE,'{sample}.json'))
+        sample_map = os.path.join(DATASETS_DIR, DATASET, f'{DATASET}-{INPUT_TYPE}.tsv'),
     params:
         gs_data_base_url = GS_1GK_DATA_BASE_URL,
-        dataset_dir = os.path.join(DATASETS_DIR, DATASET),
-        input_type = INPUT_TYPE,
-        wfl_name = INPUT_TYPES_TO_WORKFLOW_NAME.get(INPUT_TYPE)
     run:
         print(f'Finding inputs and generating WARP input files...')
         df = pd.read_csv(input.ped, sep='\t')
-        with open(input.warp_input_json_tmpl) as fh:
-            data = json.load(fh)
-
+        
+        input_files_by_sample = dict()
         for (_, row), _ in zip(df.iterrows(), progressbar.progressbar(range(len(df)))):
             sample = row['Individual.ID']
 
@@ -171,12 +176,7 @@ rule make_warp_inputs:
                       f'{INPUT_TYPES_TO_FOLDER_NAME[INPUT_TYPE]}/{sample}.mapped.*.bam"'
                 bam_fpaths = subprocess.check_output(cmd, shell=True).decode().split('\n')
                 bam_fpath = bam_fpaths[0]
-                bai_fpath = bam_fpath + '.bai'
-
-                data[f'{params.wfl_name}.sample_name'] = sample
-                data[f'{params.wfl_name}.base_file_name'] = sample
-                data[f'{params.wfl_name}.final_gvcf_base_name'] = sample
-                data[f'{params.wfl_name}.input_bam'] = bam_fpath
+                input_files_by_sample[sample] = bam_fpath
 
             elif INPUT_TYPE in ['wgs_fastq']:
                 print(f'Finding fastqs for {sample}')
@@ -188,14 +188,77 @@ rule make_warp_inputs:
                 r2_fpaths = sorted([fp for fp in fastq_fpaths if
                                     fp.endswith('2.filt.fastq.gz')])
                 fastq_pairs = list(zip(r1_fpaths, r2_fpaths))
+                input_files_by_sample[sample] = \
+                    ','.join(['|'.join(fp) for fp in fastq_pairs])
 
-                data['WGSFromFastq.sample_and_fastqs'] = dict(
-                    sample_name=sample,
-                    base_file_name=sample,
-                    final_gvcf_base_name=sample,
-                    fastqs=fastq_pairs,
-                )
+        with open(output.sample_map, 'w') as out:
+            for sample, input_files in input_files_by_sample.items():
+                out.write('\t'.join([sample, input_files]) + '\n')
 
-            json_fpath = os.path.join(params.dataset_dir, INPUT_TYPE, f'{sample}.json')
-            with open(json_fpath, 'w') as out:
-                json.dump(data, out, indent=4)
+rule make_multi_sample_warp_input:
+    input:
+        sample_map = rules.make_sample_map.output.sample_map,
+        warp_input_json_tmpl = rules.get_warp_input_json_tmpl.output.json
+    output:
+        os.path.join(DATASETS_DIR, DATASET, f'{DATASET}-{INPUT_TYPE}.json')
+    params:
+        wfl_name = INPUT_TYPES_TO_WORKFLOW_NAME.get(INPUT_TYPE),
+    run:
+        new_wfl_name = params.wfl_name.replace('From', 'MultipleSamplesFrom')
+        with open(input.warp_input_json_tmpl) as fh:
+            data = json.load(fh)
+            del data[f'{params.wfl_name}.sample_name']
+            del data[f'{params.wfl_name}.base_file_name']
+            del data[f'{params.wfl_name}.final_gvcf_base_name']
+            del data[f'{params.wfl_name}.input_bam']
+            data[f'{params.wfl_name}.sample_map'] = os.path.abspath(input.sample_map)
+            for key, val in data.items():
+                new_key = key.replace(params.wfl_name, new_wfl_name)
+                data[new_key] = val
+                del data[key]
+            
+        with open(output[0], 'w') as out:
+            json.dump(data, out, indent=4)
+        
+
+rule make_warp_inputs:
+    input:
+        sample_map = rules.make_sample_map.output.sample_map,
+        warp_input_json_tmpl = rules.get_warp_input_json_tmpl.output.json
+    output:
+        dynamic(os.path.join(DATASETS_DIR, DATASET, INPUT_TYPE, '{sample}.json')),
+    params:
+        dataset_dir = os.path.join(DATASETS_DIR, DATASET),
+        input_type = INPUT_TYPE,
+        wfl_name = INPUT_TYPES_TO_WORKFLOW_NAME.get(INPUT_TYPE)
+    run:
+        print(f'Finding inputs and generating WARP input files...')
+        with open(input.warp_input_json_tmpl) as fh:
+            data_tmpl = json.load(fh)
+
+        with open(input.sample_map) as fh:
+            for line in fh:
+                sample, input_files = line.strip().split()
+                
+                data = data_tmpl.copy()
+
+                if INPUT_TYPE in ['exome_bam', 'wgs_bam', 'wgs_bam_highcov']:
+                    bam_fpath = input_files
+                    data[f'{params.wfl_name}.sample_name'] = sample
+                    data[f'{params.wfl_name}.base_file_name'] = sample
+                    data[f'{params.wfl_name}.final_gvcf_base_name'] = sample
+                    data[f'{params.wfl_name}.input_bam'] = bam_fpath
+    
+                elif INPUT_TYPE in ['wgs_fastq']:
+                    fastq_pairs = [fp.split('|') for fp in input_files.split(',')]
+    
+                    data['WGSFromFastq.sample_and_fastqs'] = dict(
+                        sample_name=sample,
+                        base_file_name=sample,
+                        final_gvcf_base_name=sample,
+                        fastqs=fastq_pairs,
+                    )
+    
+                json_fpath = os.path.join(params.dataset_dir, INPUT_TYPE, f'{sample}.json')
+                with open(json_fpath, 'w') as out:
+                    json.dump(data, out, indent=4)
