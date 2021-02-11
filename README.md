@@ -25,11 +25,12 @@ These scripts run the workflow [Snakefile](Snakefile), which:
 2. overlaps it with the data available at `gs://genomics-public-data/ftp-trace.ncbi.nih.gov/1000genomes/ftp/phase3/data/` according to the requested `input_type` (options: `wgs_fastq`, `wgs_bam`, `wgs_bam_highcov`, `exome_bam`),
 3. selects a subset of the requested number of samples,
 4. generates input JSON files for the germline single-sample variant calling 
-   [WDL workflow](https://github.com/populationgenomics/warp/blob/start_from_mapped_bam/pipelines/broad/dna_seq/germline/single_sample/), 
-   which is built on top of [Broad WARP](https://github.com/broadinstitute/warp/),
-5. generates an input JSON for the [WGSMultipleSamplesFromBam](https://github.
-   com/populationgenomics/warp/pull/3) workflow, that runs single-sample 
-   workflows in parallel,
+   [WDL workflows](https://github.com/populationgenomics/warp/blob/start_from_mapped_bam/pipelines/broad/dna_seq/germline/single_sample/), 
+   which are based and built on top of 
+   [Broad WARP workflows](https://github.com/broadinstitute/warp/),
+5. generates an input JSON for the 
+   [WGSMultipleSamplesFromBam](https://github.com/populationgenomics/warp/pull/3) 
+   workflow, that runs single-sample workflows in parallel,
 6. generates a PED file for the subset.
 
 To run the workflow, first set up the environment with:
