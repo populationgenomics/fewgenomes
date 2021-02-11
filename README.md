@@ -24,8 +24,13 @@ These scripts run the workflow [Snakefile](Snakefile), which:
 1. pulls the 1000genomes project metadata from [the 1000genomes FTP](ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/),
 2. overlaps it with the data available at `gs://genomics-public-data/ftp-trace.ncbi.nih.gov/1000genomes/ftp/phase3/data/` according to the requested `input_type` (options: `wgs_fastq`, `wgs_bam`, `wgs_bam_highcov`, `exome_bam`),
 3. selects a subset of the requested number of samples,
-4. generates inputs for the germline variant calling [WDL workflow](https://github.com/populationgenomics/warp/blob/start_from_mapped_bam/pipelines/broad/dna_seq/germline/single_sample/), which is built on top of [Broad WARP](https://github.com/broadinstitute/warp/),
-5. generates a PED file for the subset.
+4. generates input JSON files for the germline single-sample variant calling 
+   [WDL 
+   workflow](https://github.com/populationgenomics/warp/blob/start_from_mapped_bam/pipelines/broad/dna_seq/germline/single_sample/), which is built on top of [Broad WARP](https://github.com/broadinstitute/warp/),
+5. generates an input JSON for the [WGSMultipleSamplesFromBam](https://github.
+   com/populationgenomics/warp/pull/3) workflow, that runs single-sample 
+   workflows in parallel,
+6. generates a PED file for the subset.
 
 To run the workflow, first set up the environment with:
 
@@ -33,19 +38,30 @@ To run the workflow, first set up the environment with:
 conda env create -n fewgenomes -f environment.yml
 ```
 
-The WDL inputs are written into `datasets/<dataset_name>/<input_type>/`, and can be used along with Cromwell configs, to execute a pipeline on Google Cloud to generate GVCFs:
+The WDL inputs are written into `datasets/<dataset_name>/<input_type>/`, and 
+can be used along with Cromwell configs, to execute a pipeline on Google 
+Cloud to generate GVCFs.
 
 ```
 conda install cromwell==55
 git clone https://github.com/populationgenomics/warp
 git clone https://github.com/populationgenomics/cromwell-configs
 # edit templates in `cromwell-configs` to replace <project> and <bucket>, and save as `cromwell.conf` and `options.json`
+
+# To run a single-sample workflow:
 SAMPLE=NA12878
 cromwell -Dconfig.file=cromwell.conf run \
     warp/pipelines/broad/dna_seq/germline/single_sample/exome/ExomeFromBam.wdl \
     --inputs datasets/toy/exome_bam/${SAMPLE}.json \
     --options options.json
+    
+# To run the multi-sample workflow:
+cromwell -Dconfig.file=cromwell.conf run \
+    warp/pipelines/broad/dna_seq/germline/single_sample/wgs/WGSMultipleSamplesFromBam.wdl \
+    --inputs datasets/toy-wgs_bam.json \
+    --options options.json
 ```
+
 
 ## gnomAD Matrix Table subset
 
