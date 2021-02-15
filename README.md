@@ -50,17 +50,17 @@ git clone https://github.com/populationgenomics/cromwell-configs
 # edit templates in `cromwell-configs` to replace <project> and <bucket>, and save as `cromwell.conf` and `options.json`
 
 # To run a single-sample workflow:
-SAMPLE=NA12878
-cromwell -Dconfig.file=cromwell.conf run \
-    warp/pipelines/broad/dna_seq/germline/single_sample/exome/ExomeFromBam.wdl \
-    --inputs datasets/toy/exome_bam/${SAMPLE}.json \
-    --options options.json
+SAMPLE=NA19238
+cromwell -Dconfig.file=cromwell-configs/cromwell.conf run \
+    warp/pipelines/broad/dna_seq/germline/single_sample/wgs/WGSFromBam.wdl \
+    --inputs datasets/6genomes/wgs_bam/${SAMPLE}.json \
+    --options cromwell-configs/options.json
     
 # To run the multi-sample workflow:
-cromwell -Dconfig.file=cromwell.conf run \
+cromwell -Dconfig.file=cromwell-configs/cromwell.conf run \
     warp/pipelines/broad/dna_seq/germline/single_sample/wgs/WGSMultipleSamplesFromBam.wdl \
-    --inputs datasets/toy-wgs_bam.json \
-    --options options.json
+    --inputs datasets/6genomes/6genomes-wgs_bam.json \
+    --options cromwell-configs/options.json
 ```
 
 
@@ -70,16 +70,16 @@ Script `hail_subset_gnomad.py` subsets the gnomAD matrix table (`gs://gcp-public
 
 ```
 # Upload the PED file
-gsutil cp datasets/toy/samples.ped gs://playground-us-central1/cpg-fewgenomes/datasets/toy/samples.ped
+gsutil cp datasets/toy/samples.ped gs://playground-us-central1/fewgenomes/datasets/toy/samples.ped
 
 # Create the Dataproc cluster
-hailctl dataproc start cpg-fewgenomes --region us-central1 --zone us-central1-a --max-age 12h
+hailctl dataproc start fewgenomes --region us-central1 --zone us-central1-a --max-age 12h
 
 # Run the script with the PED file as a parameter
-hailctl dataproc submit cpg-fewgenomes --region us-central1 --zone us-central1-a  hail_subset_gnomad.py gs://playground-us-central1/cpg-fewgenomes/datasets/toy/samples.ped
+hailctl dataproc submit fewgenomes --region us-central1 --zone us-central1-a hail_subset_gnomad.py gs://playground-us-central1/fewgenomes/datasets/toy/samples.ped
 
 # Stop the cluster
-hailctl dataproc stop cpg-fewgenomes
+hailctl dataproc stop fewgenomes
 ```
 
-The result will be written into the same base location as the PED file, i.e. for the example above you will be able to find it as `gs://playground-us-central1/cpg-fewgenomes/datasets/toy/gnomad.subset.mt`
+The result will be written into the same base location as the PED file, i.e. for the example above you will be able to find it as `gs://playground-us-central1/fewgenomes/datasets/toy/gnomad.subset.mt`
