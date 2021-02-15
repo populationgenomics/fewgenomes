@@ -16,16 +16,13 @@ GS_1GK_DATA_BASE_URL = 'gs://genomics-public-data/' \
 
 # Including a platinum genome NA12878, and one full trio for testing
 # the relatedness checks
-DEFAULT_INCLUDE = [
-    'NA12878', 'NA19238', 'NA19239', 'NA19240',
-]
+DEFAULT_INCLUDE = config.get('default_samples', 
+    'NA12878,NA19238,NA19239,NA19240').split(',')
 DATASETS_DIR = 'datasets/'
 
-samples_n = config.get('n')  # the number of samples to select
-samples = config.get('samples', '').split(',')
-assert samples_n or samples
-if samples_n:
-    assert samples_n >= len(DEFAULT_INCLUDE)
+SAMPLE_N = config.get('n', len(DEFAULT_INCLUDE))  # the number of samples to select
+if SAMPLE_N:
+    DEFAULT_INCLUDE = DEFAULT_INCLUDE[:SAMPLE_N]
 
 INPUT_TYPES_TO_FOLDER_NAME = {
     'wgs_fastq': 'sequence_read',
@@ -49,22 +46,16 @@ DATASET = config['dataset_name']
 
 rule all:
     input:
-        single_sample_warp_inputs = \
+        singlesample_warp_inputs = \
             dynamic(os.path.join(DATASETS_DIR, DATASET, INPUT_TYPE, '{sample}.json')),
-        multi_sample_warp_input = \
+        multisample_warp_input = \
             os.path.join(DATASETS_DIR, DATASET, f'{DATASET}-{INPUT_TYPE}.json')
 
-
-rule get_warp_input_json_tmpl:
-    output:
-        json = 'work/warp_inputs.json'
-    params:
-        workflow_name = INPUT_TYPES_TO_WORKFLOW_NAME.get(INPUT_TYPE)
-    shell:
-        'wget https://raw.githubusercontent.com/populationgenomics/cromwell-configs/'
-        'main/warp-inputs/{params.workflow_name}-inputs.json'
-        ' -O {output.json}'
-
+def get_warp_input_json_url(wfl_name):
+    return (
+        f'https://raw.githubusercontent.com/populationgenomics/cromwell-configs/'
+        f'add-multisample-warp-inputs/warp-input-templates/{wfl_name}-inputs.json'
+    )
 
 rule get_ped:
     output:
@@ -143,16 +134,13 @@ rule select_few_samples:
     run:
         df = pd.read_csv(input.ped, sep='\t')
         df = df[df[INPUT_TYPES_TO_FOLDER_NAME[params.input_type]] == True]
-        if samples_n:
-            default_sample_cond = df['Individual.ID'].isin(DEFAULT_INCLUDE)
-            print(f'Selecting {samples_n} samples...')
-            df = pd.concat([
-                df[default_sample_cond],
-                df[~default_sample_cond].sample(samples_n - len(DEFAULT_INCLUDE), 
-                    random_state=1)
-            ])
-        else:
-            df = df[df['Individual.ID'].isin(samples)]
+        default_sample_cond = df['Individual.ID'].isin(DEFAULT_INCLUDE)
+        print(f'Selecting {SAMPLE_N} samples...')
+        df = pd.concat([
+            df[default_sample_cond],
+            df[~default_sample_cond].sample(SAMPLE_N - len(DEFAULT_INCLUDE), 
+                random_state=1)
+        ])
         df.to_csv(output.ped, sep='\t', index=False)
 
 rule make_sample_map:
@@ -195,36 +183,28 @@ rule make_sample_map:
             for sample, input_files in input_files_by_sample.items():
                 out.write('\t'.join([sample, input_files]) + '\n')
 
-rule make_multi_sample_warp_input:
+rule make_multisample_warp_input:
     input:
         sample_map = rules.make_sample_map.output.sample_map,
-        warp_input_json_tmpl = rules.get_warp_input_json_tmpl.output.json
     output:
         os.path.join(DATASETS_DIR, DATASET, f'{DATASET}-{INPUT_TYPE}.json')
     params:
         wfl_name = INPUT_TYPES_TO_WORKFLOW_NAME.get(INPUT_TYPE),
     run:
-        new_wfl_name = params.wfl_name.replace('From', 'MultipleSamplesFrom')
-        with open(input.warp_input_json_tmpl) as fh:
+        multi_wfl_name = params.wfl_name.replace('From', 'MultipleSamplesFrom')        
+        wfl_tmpl_url = get_warp_input_json_url(multi_wfl_name)
+        wfl_tmpl_path = 'work/warp-input-multi.json'
+        shell(f'wget {wfl_tmpl_url} -O {wfl_tmpl_path}')
+        
+        with open(wfl_tmpl_path) as fh:
             data = json.load(fh)
-            del data[f'{params.wfl_name}.sample_name']
-            del data[f'{params.wfl_name}.base_file_name']
-            del data[f'{params.wfl_name}.final_gvcf_base_name']
-            del data[f'{params.wfl_name}.input_bam']
-            data[f'{params.wfl_name}.sample_map'] = os.path.abspath(input.sample_map)
-            for key, val in data.items():
-                new_key = key.replace(params.wfl_name, new_wfl_name)
-                data[new_key] = val
-                del data[key]
-            
+            data[f'{multi_wfl_name}.sample_map'] = os.path.abspath(input.sample_map)
         with open(output[0], 'w') as out:
             json.dump(data, out, indent=4)
-        
 
-rule make_warp_inputs:
+rule make_singlesample_warp_inputs:
     input:
         sample_map = rules.make_sample_map.output.sample_map,
-        warp_input_json_tmpl = rules.get_warp_input_json_tmpl.output.json
     output:
         dynamic(os.path.join(DATASETS_DIR, DATASET, INPUT_TYPE, '{sample}.json')),
     params:
@@ -233,7 +213,10 @@ rule make_warp_inputs:
         wfl_name = INPUT_TYPES_TO_WORKFLOW_NAME.get(INPUT_TYPE)
     run:
         print(f'Finding inputs and generating WARP input files...')
-        with open(input.warp_input_json_tmpl) as fh:
+        wfl_tmpl_url = get_warp_input_json_url(params.wfl_name)
+        wfl_tmpl_path = 'work/warp-input.json'
+        shell(f'wget {wfl_tmpl_url} -O {wfl_tmpl_path}')
+        with open(wfl_tmpl_path) as fh:
             data_tmpl = json.load(fh)
 
         with open(input.sample_map) as fh:
