@@ -1,18 +1,33 @@
+"""
+Generates JSON inputs for WARP WGS pipelines
+"""
+
 import json
 import os
 import subprocess
 from collections import defaultdict
-import progressbar
+from os.path import basename
+import numpy as np
 import pandas as pd
+import progressbar
 
 
 # spreadsheet with 1kg metadata
-XLSX_URL = 'ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/' \
-           'working/20130606_sample_info/20130606_sample_info.xlsx'
-PED_URL = 'ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/' \
-          'working/20121016_updated_pedigree/G1K_samples_20111130.ped'
-GS_1GK_DATA_BASE_URL = 'gs://genomics-public-data/' \
-                       'ftp-trace.ncbi.nih.gov/1000genomes/ftp/phase3/data'
+XLSX_URL = (
+    'ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/working/'
+    '20130606_sample_info/20130606_sample_info.xlsx'
+)
+PED_URL = (
+    'ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/working/'
+    '20121016_updated_pedigree/G1K_samples_20111130.ped'
+)
+GS_1GK_DATA_BUCKET = (
+    'gs://genomics-public-data/ftp-trace.ncbi.nih.gov/1000genomes/ftp/phase3/data'
+)
+GATKSV_SAMPLES_JSON_URL = (
+    'https://raw.githubusercontent.com/broadinstitute/gatk-sv/master/input_values/'
+    'ref_panel_1kg.json'
+)
 
 # Including a platinum genome NA12878, and one full trio for testing
 # the relatedness checks
@@ -27,8 +42,8 @@ if SAMPLE_N:
 INPUT_TYPES_TO_FOLDER_NAME = {
     'wgs_fastq': 'sequence_read',
     'wgs_bam': 'alignment',
-    'exome_bam': 'exome_alignment',
     'wgs_bam_highcov': 'high_coverage_alignment',
+    'exome_bam': 'exome_alignment',
 }
 INPUT_TYPES_TO_WORKFLOW_NAME = {
    'wgs_fastq': 'WGSFromFastq',
@@ -54,7 +69,7 @@ rule all:
 def get_warp_input_json_url(wfl_name):
     return (
         f'https://raw.githubusercontent.com/populationgenomics/cromwell-configs/'
-        f'add-multisample-warp-inputs/warp-input-templates/{wfl_name}-inputs.json'
+        f'main/warp-input-templates/{wfl_name}-inputs.json'
     )
 
 rule get_ped:
@@ -77,9 +92,9 @@ rule save_gs_ls:
     output:
         'resources/gs_phase3_data_ls.txt'
     params:
-        gs_data_base_url = GS_1GK_DATA_BASE_URL
+        gs_data_base_url = GS_1GK_DATA_BUCKET
     shell:
-        'gsutil ls "{params.gs_data_base_url}/*/" > {output}'
+        'gsutil -u fewgenomes ls "{params.gs_data_base_url}/*/" > {output}'
 
 rule gs_ls_to_table:
     input:
@@ -87,7 +102,7 @@ rule gs_ls_to_table:
     output:
         tsv = 'work/gs_phase3_data.tsv'
     params:
-        gs_data_base_url = GS_1GK_DATA_BASE_URL
+        gs_data_base_url = GS_1GK_DATA_BUCKET
     run:
         input_types_by_sample = defaultdict(list)
         with open(input[0]) as ls_inp:
@@ -103,37 +118,58 @@ rule gs_ls_to_table:
             for sample, input_types in input_types_by_sample.items():
                 out.write(sample + '\t' + ','.join(input_types) + '\n')
 
+rule gatksv_to_table:
+    output:
+        tsv = 'work/gatksv_data.txt'
+    params:
+        url = GATKSV_SAMPLES_JSON_URL
+    run:
+        shell(f'wget {params.url} -O work/{basename(params.url)}')
+        with open(f'work/{basename(params.url)}') as fh:
+            data = json.load(fh)
+        cram_urls = data['bam_or_cram_files']
+        with open(output.tsv, 'w') as out:
+            for cram_url in cram_urls:
+                out.write(cram_url + '\n')
+
 rule overlap_with_available_data:
     input:
         ped = rules.get_ped.output[0],
         gs_tsv = rules.gs_ls_to_table.output.tsv,
+        gatksv_tsv = rules.gatksv_to_table.output.tsv,
     output:
         ped = 'work/G1K_samples.with_gs_data.ped'
     run:
         df = pd.read_csv(input.ped, sep='\t')
-        for fold_n in INPUT_TYPES_TO_FOLDER_NAME.values():
-            df[fold_n] = False
+        for folder_name in INPUT_TYPES_TO_FOLDER_NAME.values():
+            df[folder_name] = False
 
         with open(input.gs_tsv) as gs_tsv:
             for line in gs_tsv:
                 line = line.strip()
                 sample = line.split('\t')[0]
                 folder_names = line.split('\t')[1].split(',')
-                for fold_n in folder_names:
-                    if fold_n in INPUT_TYPES_TO_FOLDER_NAME.values():
-                        df.loc[df['Individual.ID'] == sample, fold_n] = True
+                for folder_name in folder_names:
+                    if folder_name in INPUT_TYPES_TO_FOLDER_NAME.values():
+                        df.loc[df['Individual.ID'] == sample, folder_name] = True
+        with open(input.gatksv_tsv) as gatksv_tsv:
+            for line in gatksv_tsv:
+                cram_path = line.strip()
+                sample = basename(cram_path).replace('.final.cram', '')
+                df.loc[df['Individual.ID'] == sample, 'gatksv_cram'] = cram_path
+
         df.to_csv(output.ped, sep='\t', index=False)
 
 rule select_few_samples:
     input:
         ped = rules.overlap_with_available_data.output.ped
     output:
-        ped = os.path.join(DATASETS_DIR, DATASET,'samples.ped')
+        ped = os.path.join(DATASETS_DIR, DATASET, 'samples.ped')
     params:
         input_type = INPUT_TYPE
     run:
         df = pd.read_csv(input.ped, sep='\t')
-        df = df[df[INPUT_TYPES_TO_FOLDER_NAME[params.input_type]] == True]
+        df = df[~df['gatksv_cram'].isnull() | df['high_coverage_alignment']]
         default_sample_cond = df['Individual.ID'].isin(DEFAULT_INCLUDE)
         print(f'Selecting {SAMPLE_N} samples...')
         df = pd.concat([
@@ -149,7 +185,7 @@ rule make_sample_map:
     output:
         sample_map = os.path.join(DATASETS_DIR, DATASET, f'{DATASET}-{INPUT_TYPE}.tsv'),
     params:
-        gs_data_base_url = GS_1GK_DATA_BASE_URL,
+        gs_data_base_url = GS_1GK_DATA_BUCKET,
     run:
         print(f'Finding inputs and generating WARP input files...')
         df = pd.read_csv(input.ped, sep='\t')
@@ -159,16 +195,19 @@ rule make_sample_map:
             sample = row['Individual.ID']
 
             if INPUT_TYPE in ['exome_bam', 'wgs_bam', 'wgs_bam_highcov']:
-                print(f'Finding BAMs for {sample}')
-                cmd = f'gsutil ls "{params.gs_data_base_url}/{sample}/' \
-                      f'{INPUT_TYPES_TO_FOLDER_NAME[INPUT_TYPE]}/{sample}.mapped.*.bam"'
-                bam_fpaths = subprocess.check_output(cmd, shell=True).decode().split('\n')
-                bam_fpath = bam_fpaths[0]
-                input_files_by_sample[sample] = bam_fpath
+                if row[INPUT_TYPES_TO_FOLDER_NAME[INPUT_TYPE]]:
+                    print(f'Finding BAMs for {sample}')
+                    cmd = f'gsutil -u fewgenomes ls "{params.gs_data_base_url}/{sample}/' \
+                          f'{INPUT_TYPES_TO_FOLDER_NAME[INPUT_TYPE]}/{sample}.*.bam"'
+                    bam_fpaths = subprocess.check_output(cmd, shell=True).decode().split('\n')
+                    bam_fpath = bam_fpaths[0]
+                    input_files_by_sample[sample] = bam_fpath
+                if row['gatksv_cram'] and isinstance(row['gatksv_cram'], str):
+                    input_files_by_sample[sample] = row['gatksv_cram']
 
             elif INPUT_TYPE in ['wgs_fastq']:
                 print(f'Finding fastqs for {sample}')
-                cmd = f'gsutil ls "{params.gs_data_base_url}/{sample}/' \
+                cmd = f'gsutil -u fewgenomes ls "{params.gs_data_base_url}/{sample}/' \
                       f'sequence_read/*_*.filt.fastq.gz"'
                 fastq_fpaths = subprocess.check_output(cmd, shell=True).decode().split('\n')
                 r1_fpaths = sorted([fp for fp in fastq_fpaths if
