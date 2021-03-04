@@ -63,6 +63,44 @@ cromwell -Dconfig.file=cromwell-configs/cromwell.conf run \
     --options cromwell-configs/options.json
 ```
 
+## Prepare inputs for the GVCF combiner
+
+After running Cromwell, you can use the following script to generate inputs for the [`combine_gvcfs.py` script](https://github.com/populationgenomics/joint-calling-workflow). Example of usage:
+
+```bash
+python prep_inputs_for_combiner.py \
+   --dataset 50genomes \
+   --split-rounds \
+   --randomise-pop-labels \
+   --move-locally
+```
+
+It will write sample maps csv files to `datasets/50genomes/sample-maps`:
+
+```bash
+$ cat datasets/50genomes/sample-maps
+50genomes-all.csv  50genomes-round1.csv  50genomes-round2.csv
+```
+
+Full list of options:
+
+```bash
+  --dataset TEXT                 Dataset name, e.g. "fewgenomes". Assumes that
+                                 `{datasets_dir}/{datasets_name}/samples.ped`
+                                 exists.  [required]
+
+  --warp-executions-bucket TEXT  Bucket with WARP workflow outputs
+  --datasets-dir TEXT            Output folder. Default is "datasets/"
+  --work-dir TEXT                Directory to store temporary files
+  --split-rounds                 Break samples into 2 groups to produce tests
+                                 for the gVCF combiner
+
+  --randomise-pop-labels         Remove population labels for 1/3 of the
+                                 samples to test sample-qc ancestry detection
+
+  --move-locally                 Move GVCFs and picard files to the gs://cpg-
+                                 fewgenomes-upload bucket
+```
 
 ## gnomAD Matrix Table subset
 
