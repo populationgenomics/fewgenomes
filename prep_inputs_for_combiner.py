@@ -55,6 +55,17 @@ def _find_gcs_files(warp_executions_bucket, work_dir, file_suffix, file_key):
     return found_path_by_sname
 
 
+def _randomise_pop_labels(sample_df):
+    # Adding population labels for 2/3 of the samples in a group;
+    # the rest will be used to test the ancestry inferring methods
+    return list(
+        sample_df\
+            .groupby(['Population']) \
+            .apply(lambda x: x.iloc[:int(x['Population'].size / 1.5)]) \
+            ['Individual.ID']
+    )
+
+
 def _move_locally(gvcf_by_sample, picard_file_by_sname_by_key):
     local_gvcf_by_sample = dict()
     local_picard_file_by_sname_by_key = defaultdict(dict)
@@ -99,7 +110,6 @@ def _move_locally(gvcf_by_sample, picard_file_by_sname_by_key):
 @click.option(
     '--work-dir',
     'work_dir',
-    default='work',
     help='Directory to store temporary files'
 )
 @click.option(
@@ -133,6 +143,8 @@ def main(
     """
     Generate test inputs for the combine_gvcfs.py script
     """
+    
+    work_dir = safe_mkdir(work_dir or f'work/{dataset_name}/prep_inputs_for_combiner')
 
     samples_ped = os.path.join(datasets_dir, dataset_name, 'samples.ped')
     try:
@@ -142,16 +154,7 @@ def main(
         sys.exit(1)
 
     if randomise_pop_labels:
-        # Adding population labels for 2/3 of the samples in a group;
-        # the rest will be used to test the ancestry inferring methods
-        samples_with_pop_labels = list(
-            sample_df\
-                .groupby(['Population']) \
-                .apply(lambda x: x.iloc[:int(x['Population'].size / 1.5)]) \
-                ['Individual.ID']
-        )
-    else:
-        samples_with_pop_labels = list(sample_df['Individual.ID'])
+        samples_with_pop_labels = _randomise_pop_labels(sample_df)
 
     found_gvcf_path_by_sname = _find_gcs_files(
         warp_executions_bucket, work_dir, 'g.vcf.gz', 'gvcfs')
@@ -195,7 +198,8 @@ def main(
             row = dict(
                 sample=sample,
                 gvcf=gvcf_by_sample[sample],
-                population=pop if sample in samples_with_pop_labels else ''
+                population=pop if (not samples_with_pop_labels or
+                                   sample in samples_with_pop_labels) else ''
             )
             for picard_key, picard_suffix in PICARD_SUFFIX_D.items():
                 picard_path = picard_file_by_sname_by_key.get(picard_key, {}).get(sample)
