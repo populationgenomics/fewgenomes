@@ -66,11 +66,11 @@ def _randomise_pop_labels(sample_df):
     )
 
 
-def _move_locally(gvcf_by_sample, picard_file_by_sname_by_key):
+def _move_locally(gvcf_by_sample, dataset, picard_file_by_sname_by_key):
     local_gvcf_by_sample = dict()
     local_picard_file_by_sname_by_key = defaultdict(dict)
     for sample, gvcf_path in gvcf_by_sample.items():
-        local_path = f'gs://cpg-fewgenomes-upload/{sample}/gvcf/{basename(gvcf_path)}'
+        local_path = f'gs://cpg-fewgenomes-upload/{dataset}/{sample}/gvcf/{basename(gvcf_path)}'
         if not file_exists(local_path):
             run_cmd(f'gsutil cp {gvcf_path} {local_path}')
         local_gvcf_by_sample[sample] = local_path
@@ -78,7 +78,7 @@ def _move_locally(gvcf_by_sample, picard_file_by_sname_by_key):
         for picard_key, picard_path_by_sname in picard_file_by_sname_by_key.items():
             picard_path = picard_path_by_sname.get(sample)
             if picard_path:
-                local_path = f'gs://cpg-fewgenomes-upload/{sample}/picard_files/' \
+                local_path = f'gs://cpg-fewgenomes-upload/{dataset}/{sample}/picard_files/' \
                              f'{basename(picard_path)}'
                 if not file_exists(local_path):
                     run_cmd(f'gsutil cp {picard_path} {local_path}')
@@ -91,8 +91,15 @@ def _move_locally(gvcf_by_sample, picard_file_by_sname_by_key):
     '--dataset',
     'dataset_name',
     required=True,
-    help='Dataset name, e.g. "fewgenomes". Assumes that '
-         '`{datasets_dir}/{datasets_name}/samples.ped` exists.'
+    help='Dataset name, e.g. "50genomes". Assumes that '
+         '`{datasets_dir}/{datasets_name}/samples.ped` exists, unless --ped file is '
+         'specified explicitly.'
+)
+@click.option(
+    '--ped',
+    'samples_ped',
+    help='Ped file with input sample names. If not provided, '
+         '`{datasets_dir}/{datasets_name}/samples.ped` is read.'
 )
 @click.option(
     '--warp-executions-bucket',
@@ -133,6 +140,7 @@ def _move_locally(gvcf_by_sample, picard_file_by_sname_by_key):
 )
 def main(
     dataset_name: str,
+    samples_ped: str,
     datasets_dir: str = None,
     warp_executions_bucket: str = None,
     work_dir: str = None,
@@ -143,16 +151,18 @@ def main(
     """
     Generate test inputs for the combine_gvcfs.py script
     """
-    
+
     work_dir = safe_mkdir(work_dir or f'work/{dataset_name}/prep_inputs_for_combiner')
 
-    samples_ped = os.path.join(datasets_dir, dataset_name, 'samples.ped')
+    if not samples_ped:
+        samples_ped = os.path.join(datasets_dir, dataset_name, 'samples.ped')
     try:
         sample_df = pd.read_csv(samples_ped, sep='\t')
     except FileNotFoundError:
         logger.error(f'Could not read file {samples_ped}')
         sys.exit(1)
 
+    samples_with_pop_labels = None
     if randomise_pop_labels:
         samples_with_pop_labels = _randomise_pop_labels(sample_df)
 
@@ -186,7 +196,7 @@ def main(
 
     if move_locally:
         gvcf_by_sample, picard_file_by_sname_by_key = \
-            _move_locally(gvcf_by_sample, picard_file_by_sname_by_key)
+            _move_locally(gvcf_by_sample, dataset_name, picard_file_by_sname_by_key)
 
     rows = []
     hdr = ['sample', 'population', 'gvcf'] + list(PICARD_SUFFIX_D.keys())
