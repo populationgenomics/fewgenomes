@@ -281,7 +281,7 @@ if COPY_LOCALY_BUCKET:
                 for line in f:
                     sample, gvcf = line.strip().split()
                     out_gvcf_name = f'{sample}.g.vcf.gz'
-                    target_path = f'{params.bucket}/original-gvcf/{sample}/{out_gvcf_name}'
+                    target_path = f'{params.bucket}/original-gvcf/{sample}/gvcf/{out_gvcf_name}'
                     shell(f'gsutil ls {target_path} || gsutil -u fewgenomes cp {gvcf} {target_path}')
                     shell(f'gsutil ls {target_path}.tbi || gsutil -u fewgenomes cp {gvcf}.tbi {target_path}.tbi')
                     out.write('\t'.join([sample, target_path]) + '\n')
