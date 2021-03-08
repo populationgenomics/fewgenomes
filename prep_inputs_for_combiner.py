@@ -44,8 +44,8 @@ def _find_gcs_files(warp_executions_bucket, work_dir, file_suffix, file_key):
     safe_mkdir(work_dir)
     found_file_fpath = join(work_dir, f'found_{file_key}.txt')
     if not isfile(found_file_fpath):
-        run_cmd(f'gsutil ls \'{warp_executions_bucket}/**/*.{file_suffix}\' '
-                f'> {found_file_fpath}')
+        path_tmpl = join(warp_executions_bucket, '**', f'*.{file_suffix}')
+        run_cmd(f'gsutil ls \'{path_tmpl}\' > {found_file_fpath}')
     with open(found_file_fpath) as f:
         found_files = [l.strip() for l in f]
     found_path_by_sname = {
@@ -70,15 +70,17 @@ def _move_locally(gvcf_by_sample, dataset, picard_file_by_sname_by_key):
     local_gvcf_by_sample = dict()
     local_picard_file_by_sname_by_key = defaultdict(dict)
     for sample, gvcf_path in gvcf_by_sample.items():
-        local_path = f'gs://cpg-fewgenomes-upload/{dataset}/{sample}/gvcf/{basename(gvcf_path)}'
+        local_path = f'gs://cpg-fewgenomes-upload/{sample}/gvcf/{basename(gvcf_path)}'
         if not file_exists(local_path):
             run_cmd(f'gsutil cp {gvcf_path} {local_path}')
+        if not file_exists(local_path + '.tbi'):
+            run_cmd(f'gsutil cp {gvcf_path}.tbi {local_path}.tbi')
         local_gvcf_by_sample[sample] = local_path
 
         for picard_key, picard_path_by_sname in picard_file_by_sname_by_key.items():
             picard_path = picard_path_by_sname.get(sample)
             if picard_path:
-                local_path = f'gs://cpg-fewgenomes-upload/{dataset}/{sample}/picard_files/' \
+                local_path = f'gs://cpg-fewgenomes-upload/{sample}/picard_files/' \
                              f'{basename(picard_path)}'
                 if not file_exists(local_path):
                     run_cmd(f'gsutil cp {picard_path} {local_path}')
