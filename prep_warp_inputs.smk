@@ -66,7 +66,7 @@ assert 'dataset_name' in config, \
 DATASET = config['dataset_name']
 
 # Base bucket to copy files to
-COPY_LOCALY = config.get('copy_localy')
+COPY_LOCALY_BUCKET = config.get('copy_localy_bucket')
 
 
 if INPUT_TYPE == 'gvcf':
@@ -266,14 +266,14 @@ rule make_sample_map:
 
 sample_map = rules.make_sample_map.output.sample_map
 
-if COPY_LOCALY:
+if COPY_LOCALY_BUCKET:
     rule copy_gvcf:
         input:
             sample_map = rules.make_sample_map.output.sample_map,
         output:
             sample_map = os.path.join(DATASETS_DIR, DATASET, f'{DATASET}-{INPUT_TYPE}-local.tsv'),
         params:
-            bucket = COPY_LOCALY,
+            bucket = COPY_LOCALY_BUCKET,
             dataset = DATASET,
         run:
             with open(input.sample_map) as f,\
@@ -281,7 +281,7 @@ if COPY_LOCALY:
                 for line in f:
                     sample, gvcf = line.strip().split()
                     out_gvcf_name = f'{sample}.g.vcf.gz'
-                    target_path = f'{params.bucket}/{sample}/gvcf-highcov/{out_gvcf_name}'
+                    target_path = f'{params.bucket}/original-gvcf/{sample}/{out_gvcf_name}'
                     shell(f'gsutil ls {target_path} || gsutil -u fewgenomes cp {gvcf} {target_path}')
                     shell(f'gsutil ls {target_path}.tbi || gsutil -u fewgenomes cp {gvcf}.tbi {target_path}.tbi')
                     out.write('\t'.join([sample, target_path]) + '\n')

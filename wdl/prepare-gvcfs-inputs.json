@@ -1,8 +1,5 @@
 {
-  "PrepareGvcfsWf.gvcfs": [
-  	
-  ],
-  "PrepareGvcfsWf.samples": [
+  "PrepareGvcfsWf.input_gvcfs": [
   	
   ]
 }

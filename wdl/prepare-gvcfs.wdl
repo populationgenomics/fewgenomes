@@ -5,7 +5,6 @@ version 1.0
 workflow PrepareGvcfsWf {
   input {
     Array[File] input_gvcfs
-    Array[String] samples
     File input_regions = "gs://cpg-reference/hg38/v0/noalt.bed"
   }
 
