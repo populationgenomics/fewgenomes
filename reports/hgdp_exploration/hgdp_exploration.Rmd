@@ -1,0 +1,124 @@
+---
+author: "Centre for Population Genomics"
+date: "`r Sys.time()`"
+output:
+  html_document:
+    theme: cosmo
+    toc: true
+    code_download: true
+    code_folding: show
+  rmdformats::material:
+    highlight: kate
+params:
+  title: "HGDP Metadata Exploration"
+description: "HGDP Metadata Exploration"
+title: "`r paste(params$title)`"
+---
+
+```{r knitr_opts, include=F}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r load_pkgs}
+require(tidyverse)
+require(fs)
+require(reactable)
+```
+
+```{r funcs}
+guess_file_type <- function(x) {
+  dplyr::case_when(
+    grepl("\\.cram$", x) ~ "CRAM",
+    grepl("\\.crai$", x) ~ "CRAMindex",
+    grepl("\\.g\\.vcf\\.gz$$", x) ~ "GVCF",
+    grepl("\\.g\\.vcf\\.gz.tbi$$", x) ~ "GVCFindex",
+    grepl("\\.vcf\\.gz$$", x) ~ "VCF",
+    grepl("\\.vcf\\.gz.tbi$$", x) ~ "VCFindex",
+    grepl("\\.alignment_summary_metrics$", x) ~ "align_summ_metrics",
+    grepl("\\.insert_size_metrics$", x) ~ "insert_size_metrics",
+    grepl("\\.raw_wgs_metrics$", x) ~ "raw_wgs_metrics",
+    grepl("\\.wgs_metrics$", x) ~ "wgs_metrics",
+    grepl("\\.preBqsr\\.selfSM$", x) ~ "bqsr",
+    grepl("\\.md5$", x) ~ "MD5",
+    TRUE ~ "OTHER")
+}
+```
+
+
+## Introduction
+
+Here we're exploring metadata associated with the
+Human Genome Diversity Project
+([HGDP](https://www.internationalgenome.org/data-portal/data-collection/hgdp)).
+
+
+```{r cram_list}
+# Read in CRAM list - generated on 2021-Mar-12 with:
+# gsutil -u <project> gs://ibd-external-datasets/HGDP/broad_reprocessed_crams
+# Contains CRAM, QC metrics, MD5 etc.
+cram <-
+  "data/cram_list.txt" %>%
+  readr::read_table(col_names = c("size", "fname"), col_types = "cc") %>%
+  dplyr::mutate(bname = basename(fname),
+                ftype = guess_file_type(fname),
+                size = fs::as_fs_bytes(size))
+
+cram %>% dplyr::count(ftype) # 948 of each
+
+# Keep only HGDP samples (some other samples included)
+cram <- cram %>%
+  dplyr::filter(grepl("HGDP0", bname)) %>%
+  dplyr::mutate(sample_name = sub("(.*)\\.alt_bwamem_GRCh38DH.*", "\\1", bname))
+
+# 12.8TB of CRAMs
+cram %>%
+  dplyr::filter(ftype == "CRAM") %>%
+  dplyr::summarise(avg_size = mean(size),
+                   tot_size = sum(size),
+                   max_size = max(size),
+                   count = dplyr::n(),
+                   .groups = "drop") %>%
+  dplyr::mutate(avg_size = fs::as_fs_bytes(avg_size),
+                tot_size = fs::as_fs_bytes(tot_size),
+                max_size = fs::as_fs_bytes(max_size))
+```
+
+
+```{r vcf_list, eval=FALSE, echo=FALSE}
+# keep only files starting with HGDP
+# Read in VCF list - generated with (ignoring dirs):
+# gsutil -u <project> gs://ibd-external-datasets/HGDP/
+vcf <-
+  "data/vcf_list.txt" %>%
+  readr::read_tsv(col_names = "fname", col_types = "c") %>%
+  dplyr::mutate(bname = basename(fname),
+                ftype = guess_file_type(fname))
+
+vcf %>% count(ftype) # 948 of each (removed dirs manually)
+
+# keep only files starting with HGDP
+vcf <- vcf %>% 
+  dplyr::filter(grepl("HGDP0", bname)) %>%
+  dplyr::mutate(sample_name = sub("(.*)\\.alt_bwamem_GRCh38DH.*", "\\1", bname))
+```
+
+```{r hgdp_metadata}
+# Read in HGDP sample metadata downloaded on 2021-Mar-12 from:
+# https://www.internationalgenome.org/data-portal/data-collection/hgdp
+# 828 samples total
+hgdp <-
+  "data/igsr_hgdr_samples.tsv" %>%
+  readr::read_tsv(col_types = readr::cols(.default = "c"))
+
+hgdp %>% dplyr::count(Sex) # F/M 275/553
+hgdp %>%
+  dplyr::mutate(
+    `Superpopulation name` = sub(" \\(HGDP\\)", "", `Superpopulation name`),
+    pop_super_pop = paste0(`Superpopulation name`, " - ", `Population name`)) %>%
+  dplyr::count(pop_super_pop) %>% # 55 populations
+  dplyr::arrange(dplyr::desc(n)) %>%
+  reactable::reactable(pagination = FALSE, highlight = TRUE, height = 250)
+  
+hgdp %>% dplyr::count(`Superpopulation name`) # 8 superpopulations
+hgdp %>% dplyr::count(`Data collections`) # HGDP/Simons GDP 816/12
+```
