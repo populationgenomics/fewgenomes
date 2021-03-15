@@ -4,6 +4,7 @@ date: "`r Sys.time()`"
 output:
   html_document:
     theme: cosmo
+    css: style.css
     toc: true
     code_download: true
     code_folding: show
@@ -23,6 +24,7 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 require(tidyverse)
 require(fs)
 require(reactable)
+require(janitor)
 ```
 
 ```{r funcs}
@@ -52,73 +54,136 @@ Human Genome Diversity Project
 ([HGDP](https://www.internationalgenome.org/data-portal/data-collection/hgdp)).
 
 
-```{r cram_list}
-# Read in CRAM list - generated on 2021-Mar-12 with:
-# gsutil -u <project> gs://ibd-external-datasets/HGDP/broad_reprocessed_crams
-# Contains CRAM, QC metrics, MD5 etc.
-cram <-
-  "data/cram_list.txt" %>%
+### Contents of `ibd-external-datasets/HGDP/broad_reprocessed_crams`
+
+- List of files generated in 2021-Mar-12 with:
+
+```text
+gsutil -u <project> gs://ibd-external-datasets/HGDP/broad_reprocessed_crams
+```
+
+```{r read_cram_list}
+cram_plus_qc <-
+  "data/cram_plus_qc_list.txt" %>%
   readr::read_table(col_names = c("size", "fname"), col_types = "cc") %>%
   dplyr::mutate(bname = basename(fname),
                 ftype = guess_file_type(fname),
                 size = fs::as_fs_bytes(size))
 
-cram %>% dplyr::count(ftype) # 948 of each
+cram_plus_qc %>% dplyr::count(ftype) # 948 of each
 
-# Keep only HGDP samples (some other samples included)
-cram <- cram %>%
-  dplyr::filter(grepl("HGDP0", bname)) %>%
-  dplyr::mutate(sample_name = sub("(.*)\\.alt_bwamem_GRCh38DH.*", "\\1", bname))
-
-# 12.8TB of CRAMs
-cram %>%
+# Keep the CRAMs and grab the name from the file name
+cram <- cram_plus_qc %>%
   dplyr::filter(ftype == "CRAM") %>%
-  dplyr::summarise(avg_size = mean(size),
-                   tot_size = sum(size),
-                   max_size = max(size),
-                   count = dplyr::n(),
+  dplyr::mutate(sample_name = sub("(.*)\\.alt_bwamem_GRCh38DH.*", "\\1", bname)) %>%
+  dplyr::select(sample_name, fname, size)
+```
+
+- Total of `r nrow(cram_plus_qc)` files, consisting of `r nrow(cram)` sets of
+  CRAMs, QC metrics, md5sums etc.
+- The QC metrics are actually summarised in a file linked in
+  <https://github.com/atgu/hgdp_tgp> by the MGH ATGU team (explored later on).
+- Let's check out the CRAM file sizes:
+
+```{r cram_file_sizes}
+# ~15TB of CRAMs
+cram %>%
+  dplyr::summarise(mean = fs::as_fs_bytes(mean(size)),
+                   q1 = fs::as_fs_bytes(quantile(size, 0.25)),
+                   median = fs::as_fs_bytes(median(size)),
+                   q3 = fs::as_fs_bytes(quantile(size, 0.75)),
+                   max = fs::as_fs_bytes(max(size)),
+                   total = fs::as_fs_bytes(sum(size)),
                    .groups = "drop") %>%
-  dplyr::mutate(avg_size = fs::as_fs_bytes(avg_size),
-                tot_size = fs::as_fs_bytes(tot_size),
-                max_size = fs::as_fs_bytes(max_size))
+  tidyr::pivot_longer(cols = mean:total)
+
+ggplot(cram, aes(x = size)) +
+  geom_histogram(bins = 40, fill = "#008080") +
+  scale_x_continuous(labels = scales::comma, breaks = scales::breaks_pretty(10)) +
+  scale_y_continuous(breaks = scales::breaks_pretty(10)) +
+  xlab("CRAM file size (bytes)") +
+  theme_bw()
 ```
 
+### Contents of HGDP metadata
 
-```{r vcf_list, eval=FALSE, echo=FALSE}
-# keep only files starting with HGDP
-# Read in VCF list - generated with (ignoring dirs):
-# gsutil -u <project> gs://ibd-external-datasets/HGDP/
-vcf <-
-  "data/vcf_list.txt" %>%
-  readr::read_tsv(col_names = "fname", col_types = "c") %>%
-  dplyr::mutate(bname = basename(fname),
-                ftype = guess_file_type(fname))
-
-vcf %>% count(ftype) # 948 of each (removed dirs manually)
-
-# keep only files starting with HGDP
-vcf <- vcf %>% 
-  dplyr::filter(grepl("HGDP0", bname)) %>%
-  dplyr::mutate(sample_name = sub("(.*)\\.alt_bwamem_GRCh38DH.*", "\\1", bname))
-```
+- Read in HGDP sample metadata downloaded on 2021-Mar-12 from:
+  <https://www.internationalgenome.org/data-portal/data-collection/hgdp>.
+- 828 samples total.
+- Mostly using this as a sanity check for later on.
 
 ```{r hgdp_metadata}
-# Read in HGDP sample metadata downloaded on 2021-Mar-12 from:
-# https://www.internationalgenome.org/data-portal/data-collection/hgdp
-# 828 samples total
 hgdp <-
-  "data/igsr_hgdr_samples.tsv" %>%
-  readr::read_tsv(col_types = readr::cols(.default = "c"))
+  "data/igsr_hgdp_samples.tsv" %>%
+  readr::read_tsv(col_types = readr::cols(.default = "c")) %>%
+  janitor::clean_names() %>%
+  janitor::remove_empty("cols") %>% # down to 6 from 9 columns
+  dplyr::select(sample_name, sex, population_name, superpopulation_name)
 
-hgdp %>% dplyr::count(Sex) # F/M 275/553
-hgdp %>%
-  dplyr::mutate(
-    `Superpopulation name` = sub(" \\(HGDP\\)", "", `Superpopulation name`),
-    pop_super_pop = paste0(`Superpopulation name`, " - ", `Population name`)) %>%
-  dplyr::count(pop_super_pop) %>% # 55 populations
-  dplyr::arrange(dplyr::desc(n)) %>%
-  reactable::reactable(pagination = FALSE, highlight = TRUE, height = 250)
-  
-hgdp %>% dplyr::count(`Superpopulation name`) # 8 superpopulations
-hgdp %>% dplyr::count(`Data collections`) # HGDP/Simons GDP 816/12
+d1 <- dplyr::left_join(hgdp, cram, by = "sample_name")
+
+d1
 ```
+
+### ATGU metadata
+
+- Metadata linked in Google Drive from <https://github.com/atgu/hgdp_tgp>
+  (2021-Mar-12), after joining with above tibbles:
+
+```{r gnomad_metadata}
+gnomad <-
+  "data/gnomad_meta_hgdp_tgp_v1.txt" %>%
+  readr::read_tsv() %>%
+  janitor::remove_empty("cols") # down to 137 from 184 columns
+
+cnames <- dplyr::as_tibble(colnames(gnomad)) %>%
+  reactable::reactable(
+    pagination = FALSE, highlight = TRUE, height = 650,
+    searchable = TRUE, filterable = TRUE, bordered = TRUE)
+
+  htmlwidgets::prependContent(cnames,
+    htmltools::h2(class = "title", "Metadata column names"))
+
+d2 <- gnomad %>%
+  dplyr::rename(sample_name = project_meta.sample_id) %>%
+  dplyr::right_join(d1, by = "sample_name") %>%
+  dplyr::arrange(bam_metrics.median_coverage) %>%
+  dplyr::select(sample_name, size, sex, high_quality,
+                cov_med = bam_metrics.median_coverage,
+                pop_abbr = project_meta.project_pop,
+                pop = superpopulation_name, subpop = population_name,
+                pop_inf = population_inference.pop,
+                base20x = bam_metrics.pct_bases_20x,
+                freemix = bam_metrics.freemix,
+                n_snp = sample_qc.n_snp, fname) %>%
+  dplyr::mutate(
+    size = as.character(size),
+    pop2 = dplyr::case_when(
+      pop == "Africa (HGDP)" ~ "afr",
+      pop == "America (HGDP)" ~ "amr",
+      pop == "Central South Asia (HGDP)" ~ "sas",
+      pop == "East Asia (HGDP)" ~ "eas",
+      pop == "Europe (HGDP)" ~ "nfe",
+      pop == "Middle East (HGDP)" ~ "mid",
+      TRUE ~ "OTHER")) %>%
+  dplyr::filter(cov_med > 30,
+                cov_med < 40,
+                high_quality,
+                (pop_inf == pop_abbr) & (pop2 == pop_abbr),
+                freemix <= 0.02) %>%
+  dplyr::select(sample_name, size, sex, cov_med, pop_abbr, subpop,
+                base20x, freemix, n_snp, fname)
+```
+
+```{r table_all}
+d2 %>%
+  reactable::reactable(
+    pagination = FALSE, highlight = TRUE, height = 650,
+    searchable = TRUE, filterable = TRUE, groupBy = c("pop_abbr"),
+    bordered = TRUE,
+    columns = list(
+      subpop = colDef(aggregate = "frequency"),
+      sex = colDef(aggregate = "frequency")
+     ))
+```
+
