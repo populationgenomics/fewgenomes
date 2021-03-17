@@ -63,6 +63,7 @@ gsutil -u <project> gs://ibd-external-datasets/HGDP/broad_reprocessed_crams
 ```
 
 ```{r read_cram_list}
+theme_set(theme_bw())
 cram_plus_qc <-
   "data/cram_plus_qc_list.txt" %>%
   readr::read_table(col_names = c("size", "fname"), col_types = "cc") %>%
@@ -72,15 +73,15 @@ cram_plus_qc <-
 
 cram_plus_qc %>% dplyr::count(ftype) # 948 of each
 
-# Keep the CRAMs and grab the name from the file name
+# Keep the CRAMs and grab the sample name from the file name
 cram <- cram_plus_qc %>%
   dplyr::filter(ftype == "CRAM") %>%
   dplyr::mutate(sample_name = sub("(.*)\\.alt_bwamem_GRCh38DH.*", "\\1", bname)) %>%
   dplyr::select(sample_name, fname, size)
 ```
 
-- Total of `r nrow(cram_plus_qc)` files, consisting of `r nrow(cram)` sets of
-  CRAMs, QC metrics, md5sums etc.
+- Total of **`r nrow(cram_plus_qc)`** files, consisting of **`r nrow(cram)`**
+  sets of CRAMs, QC metrics, md5sums etc.
 - The QC metrics are actually summarised in a file linked in
   <https://github.com/atgu/hgdp_tgp> by the MGH ATGU team (explored later on).
 - Let's check out the CRAM file sizes:
@@ -98,11 +99,10 @@ cram %>%
   tidyr::pivot_longer(cols = mean:total)
 
 ggplot(cram, aes(x = size)) +
-  geom_histogram(bins = 40, fill = "#008080") +
+  geom_histogram(bins = 40, fill='#aec7e8', color='#1f77b4') +
   scale_x_continuous(labels = scales::comma, breaks = scales::breaks_pretty(10)) +
   scale_y_continuous(breaks = scales::breaks_pretty(10)) +
-  xlab("CRAM file size (bytes)") +
-  theme_bw()
+  xlab("CRAM file size (bytes)")
 ```
 
 ### Contents of HGDP metadata
@@ -136,13 +136,16 @@ gnomad <-
   readr::read_tsv() %>%
   janitor::remove_empty("cols") # down to 137 from 184 columns
 
-cnames <- dplyr::as_tibble(colnames(gnomad)) %>%
+cnames <- dplyr::tibble(column = colnames(gnomad),
+                        male_ex = t(gnomad[1, ]),
+                        female_ex = t(gnomad[80, ])) %>%
   reactable::reactable(
     pagination = FALSE, highlight = TRUE, height = 650,
     searchable = TRUE, filterable = TRUE, bordered = TRUE)
 
-  htmlwidgets::prependContent(cnames,
-    htmltools::h2(class = "title", "Metadata column names"))
+htmlwidgets::prependContent(
+  cnames,
+  htmltools::h2(class = "title", "Metadata column names"))
 
 d2 <- gnomad %>%
   dplyr::rename(sample_name = project_meta.sample_id) %>%
@@ -153,6 +156,7 @@ d2 <- gnomad %>%
                 pop_abbr = project_meta.project_pop,
                 pop = superpopulation_name, subpop = population_name,
                 pop_inf = population_inference.pop,
+                base10x = bam_metrics.pct_bases_10x,
                 base20x = bam_metrics.pct_bases_20x,
                 freemix = bam_metrics.freemix,
                 n_snp = sample_qc.n_snp, fname) %>%
@@ -168,12 +172,36 @@ d2 <- gnomad %>%
       TRUE ~ "OTHER")) %>%
   dplyr::filter(cov_med > 30,
                 cov_med < 40,
+                base20x > 92,
                 high_quality,
                 (pop_inf == pop_abbr) & (pop2 == pop_abbr),
                 freemix <= 0.02) %>%
   dplyr::select(sample_name, size, sex, cov_med, pop_abbr, subpop,
-                base20x, freemix, n_snp, fname)
+                base10x, base20x, freemix, n_snp, fname)
 ```
+
+- Total of **`r nrow(d2)`** samples remaining after filtering for:
+  - `median coverage between (30, 40)`
+  - `%bases 20x > 92`
+  - `contamination <= 2%`
+
+```{r}
+ggplot(d2, aes(x = cov_med)) +
+  geom_boxplot(fill = '#aec7e8')
+
+ggplot(d2, aes(x = base20x)) +
+  geom_histogram(bins = 40, fill='#aec7e8', color='#1f77b4') +
+  scale_x_continuous(labels = scales::comma, breaks = scales::breaks_pretty(10))
+
+ggplot(d2, aes(x = base10x)) +
+  geom_histogram(bins = 40, fill='#aec7e8', color='#1f77b4') +
+  scale_x_continuous(labels = scales::comma, breaks = scales::breaks_pretty(10))
+
+ggplot(d2, aes(x = n_snp)) +
+  geom_histogram(bins = 40, fill='#aec7e8', color='#1f77b4') +
+  scale_x_continuous(labels = scales::comma, breaks = scales::breaks_pretty(10))
+```
+
 
 ```{r table_all}
 d2 %>%
@@ -186,4 +214,3 @@ d2 %>%
       sex = colDef(aggregate = "frequency")
      ))
 ```
-
