@@ -27,7 +27,7 @@ require(reactable)
 require(janitor)
 ```
 
-```{r funcs}
+```{r funcs, echo=FALSE}
 guess_file_type <- function(x) {
   dplyr::case_when(
     grepl("\\.cram$", x) ~ "CRAM",
@@ -52,7 +52,6 @@ guess_file_type <- function(x) {
 Here we're exploring metadata associated with the
 Human Genome Diversity Project
 ([HGDP](https://www.internationalgenome.org/data-portal/data-collection/hgdp)).
-
 
 ### Contents of `ibd-external-datasets/HGDP/broad_reprocessed_crams`
 
@@ -83,7 +82,8 @@ cram <- cram_plus_qc %>%
 - Total of **`r nrow(cram_plus_qc)`** files, consisting of **`r nrow(cram)`**
   sets of CRAMs, QC metrics, md5sums etc.
 - The QC metrics are actually summarised in a file linked in
-  <https://github.com/atgu/hgdp_tgp> by the MGH ATGU team (explored later on).
+  <https://github.com/atgu/hgdp_tgp> by the MGH ATGU team (**explored in the
+  [ATGU metadata](#atgu-metadata) section of this report**).
 - Let's check out the CRAM file sizes:
 
 ```{r cram_file_sizes}
@@ -102,7 +102,7 @@ ggplot(cram, aes(x = size)) +
   geom_histogram(bins = 40, fill='#aec7e8', color='#1f77b4') +
   scale_x_continuous(labels = scales::comma, breaks = scales::breaks_pretty(10)) +
   scale_y_continuous(breaks = scales::breaks_pretty(10)) +
-  xlab("CRAM file size (bytes)")
+  ggtitle("CRAM file size (bytes).")
 ```
 
 ### Contents of HGDP metadata
@@ -110,6 +110,7 @@ ggplot(cram, aes(x = size)) +
 - Read in HGDP sample metadata downloaded on 2021-Mar-12 from:
   <https://www.internationalgenome.org/data-portal/data-collection/hgdp>.
 - 828 samples total.
+- Includes sex and population for each HGDP sample.
 - Mostly using this as a sanity check for later on.
 
 ```{r hgdp_metadata}
@@ -121,11 +122,10 @@ hgdp <-
   dplyr::select(sample_name, sex, population_name, superpopulation_name)
 
 d1 <- dplyr::left_join(hgdp, cram, by = "sample_name")
-
 d1
 ```
 
-### ATGU metadata
+### ATGU metadata {#atgu-metadata}
 
 - Metadata linked in Google Drive from <https://github.com/atgu/hgdp_tgp>
   (2021-Mar-12), after joining with above tibbles:
@@ -160,6 +160,7 @@ d2 <- gnomad %>%
                 base20x = bam_metrics.pct_bases_20x,
                 freemix = bam_metrics.freemix,
                 n_snp = sample_qc.n_snp, fname) %>%
+  # recode to exclude questionable population labels
   dplyr::mutate(
     size = as.character(size),
     pop2 = dplyr::case_when(
@@ -169,42 +170,103 @@ d2 <- gnomad %>%
       pop == "East Asia (HGDP)" ~ "eas",
       pop == "Europe (HGDP)" ~ "nfe",
       pop == "Middle East (HGDP)" ~ "mid",
-      TRUE ~ "OTHER")) %>%
-  dplyr::filter(cov_med > 30,
-                cov_med < 40,
-                base20x > 92,
-                high_quality,
-                (pop_inf == pop_abbr) & (pop2 == pop_abbr),
-                freemix <= 0.02) %>%
+      TRUE ~ "OTHER"))
+
+
+# 501 total at the end
+d_filt <- d2 %>% # 828
+  dplyr::filter(cov_med >= 30,
+                cov_med <= 40, # 687
+                base20x >= 92, # 623
+                (pop_inf == pop_abbr) & (pop2 == pop_abbr), # 571
+                freemix <= 0.02, # 536
+                high_quality # 501
+  ) %>%
   dplyr::select(sample_name, size, sex, cov_med, pop_abbr, subpop,
                 base10x, base20x, freemix, n_snp, fname)
 ```
 
-- Total of **`r nrow(d2)`** samples remaining after filtering for:
-  - `median coverage between (30, 40)`
+- Total of **`r nrow(d_filt)`** samples remaining after filtering for:
+  - `median coverage between [30, 40]`
   - `%bases 20x > 92`
   - `contamination <= 2%`
+  - `population` label agreement
+  - `high_quality` (whatever that means)
 
-```{r}
-ggplot(d2, aes(x = cov_med)) +
-  geom_boxplot(fill = '#aec7e8')
 
-ggplot(d2, aes(x = base20x)) +
-  geom_histogram(bins = 40, fill='#aec7e8', color='#1f77b4') +
-  scale_x_continuous(labels = scales::comma, breaks = scales::breaks_pretty(10))
+- Let's also look at samples that have call rate >= 0.895,
+  and median depth between 30 and 40 (filtered from gnomAD 1KGP + HGDP
+  MatrixTable):
 
-ggplot(d2, aes(x = base10x)) +
-  geom_histogram(bins = 40, fill='#aec7e8', color='#1f77b4') +
-  scale_x_continuous(labels = scales::comma, breaks = scales::breaks_pretty(10))
-
-ggplot(d2, aes(x = n_snp)) +
-  geom_histogram(bins = 40, fill='#aec7e8', color='#1f77b4') +
-  scale_x_continuous(labels = scales::comma, breaks = scales::breaks_pretty(10))
+```{r read_filtered_matrixtable}
+# 597 total
+# CSV file contains columns which are JSON data exported from Hail
+mt <- "data/filtered_table_kat.txt" %>%
+  readr::read_tsv(col_types = cols(.default = "c", gnomad_release = "l")) %>%
+  # convert JSON columns (so map over each column element the function) to dfs
+  dplyr::mutate(bam_metrics2 = purrr::map(
+    bam_metrics, ~jsonlite::fromJSON(.) %>% dplyr::bind_rows())) %>%
+  tidyr::unnest(bam_metrics2) %>%
+  # for matching with our pop: foo -> Foo
+  dplyr::mutate(subpop = stringr::str_to_title(labeled_subpop)) %>%
+  dplyr::select(
+    -c(bam_metrics, subsets, sex_imputation, population_inference, sample_qc,
+       labeled_subpop, pct_chimeras, gnomad_release, mean_coverage,
+       mean_insert_size, median_insert_size)) %>%
+  dplyr::rename(sample_name = s, cov_med = median_coverage,
+                base10x = pct_bases_10x, base20x = pct_bases_20x)
 ```
 
 
+```{r}
+d_final <- d_filt %>%
+  dplyr::filter(sample_name %in% mt$sample_name) %>%
+  dplyr::arrange(sample_name)
+```
+
+- Total of `r nrow(d_final)` after final filtration.
+
+```{r plots}
+d_final %>%
+  dplyr::mutate(size = fs::as_fs_bytes(size)) %>%
+  ggplot(aes(x = size)) +
+  geom_histogram(bins = 40, fill='#aec7e8', color='#1f77b4') +
+  scale_x_continuous(labels = scales::comma,
+                     breaks = scales::breaks_pretty(10)) +
+  scale_y_continuous(breaks = scales::breaks_pretty(10)) +
+  coord_flip() +
+  ggtitle("CRAM file size (bytes) (for filtered samples).")
+
+ggplot(d_final, aes(x = "", y = cov_med)) +
+  geom_boxplot() +
+  geom_jitter(shape = 21, colour = '#000080', fill = "#1f77b4",
+              width = 0.25, height = 0.15) +
+  coord_flip() +
+  scale_y_continuous(breaks = scales::breaks_pretty(8)) +
+  ggtitle("Median coverage (for filtered samples).") +
+  xlab("")
+
+ggplot(d_filt, aes(x = base20x)) +
+  geom_histogram(bins = 40, fill='#aec7e8', color='#1f77b4') +
+  scale_x_continuous(labels = scales::comma,
+                     breaks = scales::breaks_pretty(10)) +
+  ggtitle("% bases covered by at least 20 reads (for filtered samples)")
+
+ggplot(d_filt, aes(x = base10x)) +
+  geom_histogram(bins = 40, fill='#aec7e8', color='#1f77b4') +
+  scale_x_continuous(labels = scales::comma,
+                     breaks = scales::breaks_pretty(10)) +
+  ggtitle("% bases covered by at least 10 reads (for filtered samples)")
+
+ggplot(d_filt, aes(x = n_snp)) +
+  geom_histogram(bins = 40, fill='#aec7e8', color='#1f77b4') +
+  scale_x_continuous(labels = scales::comma,
+                     breaks = scales::breaks_pretty(10)) +
+  ggtitle("Number of SNPs (for filtered samples)")
+```
+
 ```{r table_all}
-d2 %>%
+d_final %>%
   reactable::reactable(
     pagination = FALSE, highlight = TRUE, height = 650,
     searchable = TRUE, filterable = TRUE, groupBy = c("pop_abbr"),
@@ -214,3 +276,10 @@ d2 %>%
       sex = colDef(aggregate = "frequency")
      ))
 ```
+
+```{r}
+d_final %>%
+  group_by(subpop, sex) %>%
+  sample_n(1)
+```
+
