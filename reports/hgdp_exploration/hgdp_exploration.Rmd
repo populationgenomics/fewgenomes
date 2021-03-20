@@ -24,32 +24,16 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 require(tidyverse)
 require(fs)
 require(reactable)
+require(glue)
 require(janitor)
-```
+require(downloadthis)
 
-```{r funcs, echo=FALSE}
-guess_file_type <- function(x) {
-  dplyr::case_when(
-    grepl("\\.cram$", x) ~ "CRAM",
-    grepl("\\.crai$", x) ~ "CRAMindex",
-    grepl("\\.g\\.vcf\\.gz$$", x) ~ "GVCF",
-    grepl("\\.g\\.vcf\\.gz.tbi$$", x) ~ "GVCFindex",
-    grepl("\\.vcf\\.gz$$", x) ~ "VCF",
-    grepl("\\.vcf\\.gz.tbi$$", x) ~ "VCFindex",
-    grepl("\\.alignment_summary_metrics$", x) ~ "align_summ_metrics",
-    grepl("\\.insert_size_metrics$", x) ~ "insert_size_metrics",
-    grepl("\\.raw_wgs_metrics$", x) ~ "raw_wgs_metrics",
-    grepl("\\.wgs_metrics$", x) ~ "wgs_metrics",
-    grepl("\\.preBqsr\\.selfSM$", x) ~ "bqsr",
-    grepl("\\.md5$", x) ~ "MD5",
-    TRUE ~ "OTHER")
-}
+source("functions.R")
 ```
-
 
 ## Introduction
 
-Here we're exploring metadata associated with the
+Here we're exploring CRAM files and metadata associated with the
 Human Genome Diversity Project
 ([HGDP](https://www.internationalgenome.org/data-portal/data-collection/hgdp)).
 
@@ -70,13 +54,19 @@ cram_plus_qc <-
                 ftype = guess_file_type(fname),
                 size = fs::as_fs_bytes(size))
 
-cram_plus_qc %>% dplyr::count(ftype) # 948 of each
+cram_plus_qc %>%
+  dplyr::count(ftype) %>% knitr::kable(caption = "Type of files in bucket.") # 948 of each
 
 # Keep the CRAMs and grab the sample name from the file name
 cram <- cram_plus_qc %>%
   dplyr::filter(ftype == "CRAM") %>%
-  dplyr::mutate(sample_name = sub("(.*)\\.alt_bwamem_GRCh38DH.*", "\\1", bname)) %>%
+  dplyr::mutate(sample_name = dplyr::case_when(
+    grepl("LP600", bname) ~ sub("(LP600.*)\\.srt.aln.cram", "\\1", bname),
+    grepl("SS600", bname) ~ sub("(SS600.*)\\.srt.aln.cram", "\\1", bname),
+    grepl("HGDP0", bname) ~ sub("(HGDP0.*)\\.alt_bwamem_GRCh38DH.*", "\\1", bname),
+    TRUE ~ bname)) %>%
   dplyr::select(sample_name, fname, size)
+cram
 ```
 
 - Total of **`r nrow(cram_plus_qc)`** files, consisting of **`r nrow(cram)`**
@@ -96,39 +86,21 @@ cram %>%
                    max = fs::as_fs_bytes(max(size)),
                    total = fs::as_fs_bytes(sum(size)),
                    .groups = "drop") %>%
-  tidyr::pivot_longer(cols = mean:total)
+  tidyr::pivot_longer(cols = mean:total) %>%
+  knitr::kable(caption = "CRAM file size metrics.")
 
 ggplot(cram, aes(x = size)) +
   geom_histogram(bins = 40, fill='#aec7e8', color='#1f77b4') +
   scale_x_continuous(labels = scales::comma, breaks = scales::breaks_pretty(10)) +
   scale_y_continuous(breaks = scales::breaks_pretty(10)) +
-  ggtitle("CRAM file size (bytes).")
-```
-
-### Contents of HGDP metadata
-
-- Read in HGDP sample metadata downloaded on 2021-Mar-12 from:
-  <https://www.internationalgenome.org/data-portal/data-collection/hgdp>.
-- 828 samples total.
-- Includes sex and population for each HGDP sample.
-- Mostly using this as a sanity check for later on.
-
-```{r hgdp_metadata}
-hgdp <-
-  "data/igsr_hgdp_samples.tsv" %>%
-  readr::read_tsv(col_types = readr::cols(.default = "c")) %>%
-  janitor::clean_names() %>%
-  janitor::remove_empty("cols") %>% # down to 6 from 9 columns
-  dplyr::select(sample_name, sex, population_name, superpopulation_name)
-
-d1 <- dplyr::left_join(hgdp, cram, by = "sample_name")
-d1
+  ggtitle(glue::glue("CRAM file size (bytes) for {nrow(cram)} samples."))
 ```
 
 ### ATGU metadata {#atgu-metadata}
 
-- Metadata linked in Google Drive from <https://github.com/atgu/hgdp_tgp>
-  (2021-Mar-12), after joining with above tibbles:
+- Let's annotate these samples with metadata linked in Google Drive
+  from <https://github.com/atgu/hgdp_tgp> (2021-Mar-12),
+  after joining with above tibble:
 
 ```{r gnomad_metadata}
 gnomad <-
@@ -136,6 +108,7 @@ gnomad <-
   readr::read_tsv() %>%
   janitor::remove_empty("cols") # down to 137 from 184 columns
 
+# show example columns
 cnames <- dplyr::tibble(column = colnames(gnomad),
                         male_ex = t(gnomad[1, ]),
                         female_ex = t(gnomad[80, ])) %>%
@@ -147,129 +120,148 @@ htmlwidgets::prependContent(
   cnames,
   htmltools::h2(class = "title", "Metadata column names"))
 
-d2 <- gnomad %>%
+# select a few of the main qc columns and join with cram
+d <- gnomad %>%
   dplyr::rename(sample_name = project_meta.sample_id) %>%
-  dplyr::right_join(d1, by = "sample_name") %>%
-  dplyr::arrange(bam_metrics.median_coverage) %>%
-  dplyr::select(sample_name, size, sex, high_quality,
+  dplyr::right_join(cram, by = "sample_name") %>%
+  dplyr::arrange(sample_name) %>%
+  dplyr::select(sample_name, size, sex = project_meta.sex, high_quality,
                 cov_med = bam_metrics.median_coverage,
-                pop_abbr = project_meta.project_pop,
-                pop = superpopulation_name, subpop = population_name,
+                pop = project_meta.project_pop,
+                subpop = project_meta.project_subpop,
                 pop_inf = population_inference.pop,
                 base10x = bam_metrics.pct_bases_10x,
                 base20x = bam_metrics.pct_bases_20x,
                 freemix = bam_metrics.freemix,
-                n_snp = sample_qc.n_snp, fname) %>%
-  # recode to exclude questionable population labels
-  dplyr::mutate(
-    size = as.character(size),
-    pop2 = dplyr::case_when(
-      pop == "Africa (HGDP)" ~ "afr",
-      pop == "America (HGDP)" ~ "amr",
-      pop == "Central South Asia (HGDP)" ~ "sas",
-      pop == "East Asia (HGDP)" ~ "eas",
-      pop == "Europe (HGDP)" ~ "nfe",
-      pop == "Middle East (HGDP)" ~ "mid",
-      TRUE ~ "OTHER"))
-
-
-# 501 total at the end
-d_filt <- d2 %>% # 828
-  dplyr::filter(cov_med >= 30,
-                cov_med <= 40, # 687
-                base20x >= 92, # 623
-                (pop_inf == pop_abbr) & (pop2 == pop_abbr), # 571
-                freemix <= 0.02, # 536
-                high_quality # 501
-  ) %>%
-  dplyr::select(sample_name, size, sex, cov_med, pop_abbr, subpop,
-                base10x, base20x, freemix, n_snp, fname)
+                insert_size_med = bam_metrics.median_insert_size,
+                n_snp = sample_qc.n_snp, fname)
 ```
 
-- Total of **`r nrow(d_filt)`** samples remaining after filtering for:
-  - `median coverage between [30, 40]`
-  - `%bases 20x > 92`
-  - `contamination <= 2%`
-  - `population` label agreement
-  - `high_quality` (whatever that means)
+### Filter1
 
-
-- Let's also look at samples that have call rate >= 0.895,
-  and median depth between 30 and 40 (filtered from gnomAD 1KGP + HGDP
-  MatrixTable):
+- Let's look at samples that have call rate >= 0.895,
+  and median depth between 30 and 40 (pre-filtered from [gnomAD 1KGP + HGDP
+  MatrixTable](https://gnomad.broadinstitute.org/downloads)):
 
 ```{r read_filtered_matrixtable}
 # 597 total
-# CSV file contains columns which are JSON data exported from Hail
-mt <- "data/filtered_table_kat.txt" %>%
-  readr::read_tsv(col_types = cols(.default = "c", gnomad_release = "l")) %>%
-  # convert JSON columns (so map over each column element the function) to dfs
-  dplyr::mutate(bam_metrics2 = purrr::map(
-    bam_metrics, ~jsonlite::fromJSON(.) %>% dplyr::bind_rows())) %>%
-  tidyr::unnest(bam_metrics2) %>%
-  # for matching with our pop: foo -> Foo
-  dplyr::mutate(subpop = stringr::str_to_title(labeled_subpop)) %>%
-  dplyr::select(
-    -c(bam_metrics, subsets, sex_imputation, population_inference, sample_qc,
-       labeled_subpop, pct_chimeras, gnomad_release, mean_coverage,
-       mean_insert_size, median_insert_size)) %>%
-  dplyr::rename(sample_name = s, cov_med = median_coverage,
-                base10x = pct_bases_10x, base20x = pct_bases_20x)
-```
+hq_samples <- "data/filtered_table_kat.txt" %>%
+  readr::read_tsv(col_types = cols_only(s = col_character())) %>%
+  dplyr::pull()
 
+# all are in the bucket
+table(hq_samples %in% d$sample_name)
 
-```{r}
-d_final <- d_filt %>%
-  dplyr::filter(sample_name %in% mt$sample_name) %>%
+# Include 'oth' pop explicitly (papuan/melanesian) - these get filtered
+# out otherwise. Total: 627
+d_filt1 <- d %>%
+  dplyr::filter(sample_name %in% hq_samples | pop %in% "oth") %>%
+  dplyr::mutate(
+    pop_long = dplyr::case_when(
+      pop == "afr" ~ "Africa",
+      pop == "amr" ~ "America",
+      pop == "sas" ~ "Central South Asia",
+      pop == "eas" ~ "East Asia",
+      pop == "nfe" ~ "Europe (non-Finnish)",
+      pop == "mid" ~ "Middle East",
+      pop == "oth" ~ "Other",
+      TRUE ~ "UNKNOWN")) %>%
   dplyr::arrange(sample_name)
 ```
 
-- Total of `r nrow(d_final)` after final filtration.
+### Filter2
+
+- Total of **`r nrow(d_filt1)`** after filtration by call rate & coverage (but
+  including Papuan/Melanesian samples even if they failed those filters).
+- Now that we're confident we have good quality data (except the
+  Papuan/Melanesian samples), we can randomly pick 4 male and 4 female samples
+  across the seven different populations. Let's also remove any samples with
+  a CRAM file larger than 18G:
+
+```{r}
+set.seed(123)
+d_filt1 %>%
+  count(pop_long, sex) %>%
+  knitr::kable(caption = "Count of males/females per population.")
+
+d_filt2 <- d_filt1 %>%
+  dplyr::filter(size < fs::as_fs_bytes("18G")) %>%
+  dplyr::group_by(pop_long, sex) %>%
+  dplyr::sample_n(4)
+
+d_filt2 %>% count(pop_long, sex) %>% knitr::kable()
+```
 
 ```{r plots}
-d_final %>%
-  dplyr::mutate(size = fs::as_fs_bytes(size)) %>%
-  ggplot(aes(x = size)) +
+ggplot(d_filt2, aes(x = size)) +
   geom_histogram(bins = 40, fill='#aec7e8', color='#1f77b4') +
   scale_x_continuous(labels = scales::comma,
                      breaks = scales::breaks_pretty(10)) +
   scale_y_continuous(breaks = scales::breaks_pretty(10)) +
   coord_flip() +
-  ggtitle("CRAM file size (bytes) (for filtered samples).")
+  ggtitle(glue("CRAM file size in bytes (for {nrow(d_filt2)} samples)."))
 
-ggplot(d_final, aes(x = "", y = cov_med)) +
+ggplot(d_filt2, aes(x = "", y = cov_med)) +
   geom_boxplot() +
-  geom_jitter(shape = 21, colour = '#000080', fill = "#1f77b4",
-              width = 0.25, height = 0.15) +
+  geom_jitter(shape = 21, colour = '#008080', fill = "#1f77b4",
+              width = 0.35, height = 0.08) +
   coord_flip() +
   scale_y_continuous(breaks = scales::breaks_pretty(8)) +
-  ggtitle("Median coverage (for filtered samples).") +
+  ggtitle(glue("Median coverage (for {nrow(d_filt2)} samples).")) +
   xlab("")
 
-ggplot(d_filt, aes(x = base20x)) +
+ggplot(d_filt2, aes(x = base20x)) +
   geom_histogram(bins = 40, fill='#aec7e8', color='#1f77b4') +
   scale_x_continuous(labels = scales::comma,
                      breaks = scales::breaks_pretty(10)) +
-  ggtitle("% bases covered by at least 20 reads (for filtered samples)")
+  ggtitle(glue("% bases covered by at least 20 reads ({nrow(d_filt2)} samples)"))
 
-ggplot(d_filt, aes(x = base10x)) +
+ggplot(d_filt2, aes(x = base10x)) +
   geom_histogram(bins = 40, fill='#aec7e8', color='#1f77b4') +
   scale_x_continuous(labels = scales::comma,
                      breaks = scales::breaks_pretty(10)) +
-  ggtitle("% bases covered by at least 10 reads (for filtered samples)")
+  ggtitle(glue("% bases covered by at least 10 reads ({nrow(d_filt2)} samples)"))
 
-ggplot(d_filt, aes(x = n_snp)) +
+ggplot(d_filt2, aes(x = n_snp)) +
   geom_histogram(bins = 40, fill='#aec7e8', color='#1f77b4') +
   scale_x_continuous(labels = scales::comma,
                      breaks = scales::breaks_pretty(10)) +
-  ggtitle("Number of SNPs (for filtered samples)")
+  ggtitle(glue("Number of SNPs ({nrow(d_filt2)} samples)"))
+
+ggplot(d_filt2, aes(x = insert_size_med)) +
+  geom_histogram(bins = 40, fill='#aec7e8', color='#1f77b4') +
+  scale_x_continuous(labels = scales::comma,
+                     breaks = scales::breaks_pretty(10)) +
+  ggtitle(glue("Median insert size ({nrow(d_filt2)} samples)"))
 ```
 
+## Final sample table
+
+- Total of:
+  - **`r nrow(d_filt2)`** samples
+  - **`r sum(d_filt2$size)`** CRAM size
+
 ```{r table_all}
-d_final %>%
+d_final <- d_filt2 %>%
+  dplyr::mutate(size_cram = as.character(size)) %>%
+  dplyr::select(sample_name, pop_long, subpop, sex, cov_med, base10x, base20x,
+                freemix, insert_size_med, n_snp, size_cram, fname)
+
+download_button <- d_final %>%
+  downloadthis::download_this(
+    output_name = "hgdp_final_56samples",
+    output_extension = ".csv",
+    button_label = "Download CSV Table",
+    button_type = "primary",
+    has_icon = TRUE,
+    icon = "fa fa-save"
+  )
+
+tab <- d_final %>%
+  dplyr::select(-c(fname)) %>%
   reactable::reactable(
-    pagination = FALSE, highlight = TRUE, height = 650,
-    searchable = TRUE, filterable = TRUE, groupBy = c("pop_abbr"),
+    pagination = FALSE, highlight = TRUE, height = 2000,
+    searchable = TRUE, filterable = TRUE, groupBy = c("pop_long"),
     bordered = TRUE,
     columns = list(
       subpop = colDef(aggregate = "frequency"),
@@ -277,9 +269,7 @@ d_final %>%
      ))
 ```
 
-```{r}
-d_final %>%
-  group_by(subpop, sex) %>%
-  sample_n(1)
+```{r echo=FALSE}
+download_button
+tab
 ```
-
