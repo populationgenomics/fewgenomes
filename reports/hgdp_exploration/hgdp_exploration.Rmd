@@ -149,9 +149,6 @@ hq_samples <- "data/filtered_table_kat.txt" %>%
   readr::read_tsv(col_types = cols_only(s = col_character())) %>%
   dplyr::pull()
 
-# all are in the bucket
-table(hq_samples %in% d$sample_name)
-
 # Include 'oth' pop explicitly (papuan/melanesian) - these get filtered
 # out otherwise. Total: 627
 d_filt1 <- d %>%
@@ -176,13 +173,13 @@ d_filt1 <- d %>%
 - Now that we're confident we have good quality data (except the
   Papuan/Melanesian samples), we can randomly pick 4 male and 4 female samples
   across the seven different populations. Let's also remove any samples with
-  a CRAM file larger than 18G:
-
-- America: Mayan
-- Central South Asia: Hazara, Macrani
-- East Asia: Cambodia, Uygur, Yizu, Han, She, Yakut
-- Europe: Basque, Russian
-- Middle East: Bedouin
+  a CRAM file larger than 18G, and manually select the following samples based
+  on subpopulation:
+  - America: Mayan
+  - Central South Asia: Hazara, Macrani
+  - East Asia: Cambodia, Uygur, Yizu, Han, She, Yakut
+  - Europe: Basque, Russian
+  - Middle East: Bedouin
 
 
 ```{r}
@@ -259,7 +256,7 @@ ggplot(d_final1, aes(x = insert_size_med)) +
 
 - Total of:
   - **`r nrow(d_final1)`** samples
-  - **`r options(scipen=999); as.character(fs::as_fs_bytes(sum(d_final1$size)))`** CRAM size
+  - **`r options(scipen=999); as.character(fs::as_fs_bytes(sum(d_final1$size)))`** size of all CRAMs
 
 ```{r table_all}
 d_final2 <- d_final1 %>%
@@ -269,8 +266,9 @@ d_final2 <- d_final1 %>%
 
 download_button <- d_final2 %>%
   downloadthis::download_this(
-    output_name = "hgdp_final_56samples",
+    output_name = glue("hgdp_final_{nrow(d_final2)}_samples"),
     output_extension = ".csv",
+    csv2 = FALSE,
     button_label = "Download CSV Table",
     button_type = "primary",
     has_icon = TRUE,
