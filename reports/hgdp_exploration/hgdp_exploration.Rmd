@@ -178,6 +178,13 @@ d_filt1 <- d %>%
   across the seven different populations. Let's also remove any samples with
   a CRAM file larger than 18G:
 
+- America: Mayan
+- Central South Asia: Hazara, Macrani
+- East Asia: Cambodia, Uygur, Yizu, Han, She, Yakut
+- Europe: Basque, Russian
+- Middle East: Bedouin
+
+
 ```{r}
 set.seed(123)
 d_filt1 %>%
@@ -189,65 +196,78 @@ d_filt2 <- d_filt1 %>%
   dplyr::group_by(pop_long, sex) %>%
   dplyr::sample_n(4)
 
-d_filt2 %>% count(pop_long, sex) %>% knitr::kable()
+to_add <- c("HGDP00099", "HGDP00607", "HGDP00716", "HGDP00774", "HGDP00854",
+            "HGDP00879", "HGDP00946", "HGDP01181", "HGDP01301", "HGDP01327",
+            "HGDP01357", "HGDP00858", "HGDP00618")
+
+to_remove <- c("LP6005441-DNA_E10", "HGDP01059", "HGDP00733", "HGDP00740")
+
+d_filt3 <- d_filt1 %>%
+  dplyr::filter(sample_name %in% to_add)
+
+d_filt4 <- d_filt2 %>%
+  dplyr::filter(!sample_name %in% to_remove)
+
+d_final1 <- dplyr::bind_rows(d_filt3, d_filt4)
+d_final1 %>% count(pop_long, sex) %>% knitr::kable()
 ```
 
 ```{r plots}
-ggplot(d_filt2, aes(x = size)) +
+ggplot(d_final1, aes(x = size)) +
   geom_histogram(bins = 40, fill='#aec7e8', color='#1f77b4') +
   scale_x_continuous(labels = scales::comma,
                      breaks = scales::breaks_pretty(10)) +
   scale_y_continuous(breaks = scales::breaks_pretty(10)) +
   coord_flip() +
-  ggtitle(glue("CRAM file size in bytes (for {nrow(d_filt2)} samples)."))
+  ggtitle(glue("CRAM file size in bytes (for {nrow(d_final1)} samples)."))
 
-ggplot(d_filt2, aes(x = "", y = cov_med)) +
+ggplot(d_final1, aes(x = "", y = cov_med)) +
   geom_boxplot() +
   geom_jitter(shape = 21, colour = '#008080', fill = "#1f77b4",
               width = 0.35, height = 0.08) +
   coord_flip() +
   scale_y_continuous(breaks = scales::breaks_pretty(8)) +
-  ggtitle(glue("Median coverage (for {nrow(d_filt2)} samples).")) +
+  ggtitle(glue("Median coverage (for {nrow(d_final1)} samples).")) +
   xlab("")
 
-ggplot(d_filt2, aes(x = base20x)) +
+ggplot(d_final1, aes(x = base20x)) +
   geom_histogram(bins = 40, fill='#aec7e8', color='#1f77b4') +
   scale_x_continuous(labels = scales::comma,
                      breaks = scales::breaks_pretty(10)) +
-  ggtitle(glue("% bases covered by at least 20 reads ({nrow(d_filt2)} samples)"))
+  ggtitle(glue("% bases covered by at least 20 reads ({nrow(d_final1)} samples)"))
 
-ggplot(d_filt2, aes(x = base10x)) +
+ggplot(d_final1, aes(x = base10x)) +
   geom_histogram(bins = 40, fill='#aec7e8', color='#1f77b4') +
   scale_x_continuous(labels = scales::comma,
                      breaks = scales::breaks_pretty(10)) +
-  ggtitle(glue("% bases covered by at least 10 reads ({nrow(d_filt2)} samples)"))
+  ggtitle(glue("% bases covered by at least 10 reads ({nrow(d_final1)} samples)"))
 
-ggplot(d_filt2, aes(x = n_snp)) +
+ggplot(d_final1, aes(x = n_snp)) +
   geom_histogram(bins = 40, fill='#aec7e8', color='#1f77b4') +
   scale_x_continuous(labels = scales::comma,
                      breaks = scales::breaks_pretty(10)) +
-  ggtitle(glue("Number of SNPs ({nrow(d_filt2)} samples)"))
+  ggtitle(glue("Number of SNPs ({nrow(d_final1)} samples)"))
 
-ggplot(d_filt2, aes(x = insert_size_med)) +
+ggplot(d_final1, aes(x = insert_size_med)) +
   geom_histogram(bins = 40, fill='#aec7e8', color='#1f77b4') +
   scale_x_continuous(labels = scales::comma,
                      breaks = scales::breaks_pretty(10)) +
-  ggtitle(glue("Median insert size ({nrow(d_filt2)} samples)"))
+  ggtitle(glue("Median insert size ({nrow(d_final1)} samples)"))
 ```
 
 ## Final sample table
 
 - Total of:
-  - **`r nrow(d_filt2)`** samples
-  - **`r sum(d_filt2$size)`** CRAM size
+  - **`r nrow(d_final1)`** samples
+  - **`r options(scipen=999); as.character(fs::as_fs_bytes(sum(d_final1$size)))`** CRAM size
 
 ```{r table_all}
-d_final <- d_filt2 %>%
+d_final2 <- d_final1 %>%
   dplyr::mutate(size_cram = as.character(size)) %>%
   dplyr::select(sample_name, pop_long, subpop, sex, cov_med, base10x, base20x,
                 freemix, insert_size_med, n_snp, size_cram, fname)
 
-download_button <- d_final %>%
+download_button <- d_final2 %>%
   downloadthis::download_this(
     output_name = "hgdp_final_56samples",
     output_extension = ".csv",
@@ -257,7 +277,7 @@ download_button <- d_final %>%
     icon = "fa fa-save"
   )
 
-tab <- d_final %>%
+tab <- d_final2 %>%
   dplyr::select(-c(fname)) %>%
   reactable::reactable(
     pagination = FALSE, highlight = TRUE, height = 2000,
