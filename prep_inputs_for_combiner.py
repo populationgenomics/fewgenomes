@@ -138,7 +138,7 @@ def _move_locally(gvcf_by_sample, dataset, picard_file_by_sname_by_key):
     '--move-locally',
     'move_locally',
     is_flag=True,
-    help='Move GVCFs and picard files to the gs://cpg-fewgenomes-upload bucket'
+    help='Move GVCFs and picard files to the gs://cpg-fewgenomes-upload bucket.'
 )
 def main(
     dataset_name: str,
