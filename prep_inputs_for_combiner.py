@@ -119,7 +119,7 @@ def _move_locally(gvcf_by_sample, dataset, picard_file_by_sname_by_key):
 @click.option(
     '--work-dir',
     'work_dir',
-    help='Directory to store temporary files'
+    help='Directory to store temporary files.'
 )
 @click.option(
     '--split-rounds',
