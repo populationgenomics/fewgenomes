@@ -7,5 +7,5 @@ output = os.getenv('OUTPUT')
 assert output and output.startswith('gs://cpg-fewgenomes-test/')
 
 subprocess.check_output(
-    ['gsutil', 'mv', 'gs://cpg-fewgenomes-upload/cas-simons', output]
+    ['gsutil', 'mv', 'gs://cpg-fewgenomes-upload/cas-simons/*', output]
 )
