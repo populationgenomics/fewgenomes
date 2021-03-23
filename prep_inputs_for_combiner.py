@@ -132,7 +132,7 @@ def _move_locally(gvcf_by_sample, dataset, picard_file_by_sname_by_key):
     'randomise_pop_labels',
     is_flag=True,
     help='Remove population labels for 1/3 of the samples to test sample-qc '
-         'ancestry detection'
+         'ancestry inference.'
 )
 @click.option(
     '--move-locally',
