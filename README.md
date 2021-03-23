@@ -111,7 +111,7 @@ $ cat datasets/50genomes-gvcf/sample-maps
 
 Full list of options:
 
-```bash
+```text
   --dataset TEXT                 Dataset name, e.g. "fewgenomes". Assumes that
                                  `{datasets_dir}/{datasets_name}/samples.ped`
                                  exists.  [required]
