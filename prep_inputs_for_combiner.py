@@ -108,7 +108,7 @@ def _move_locally(gvcf_by_sample, dataset, picard_file_by_sname_by_key):
     'warp_executions_bucket',
     default=('gs://playground-us-central1/cromwell/executions/'
              'WGSMultipleSamplesFromBam'),
-    help='Bucket with WARP workflow outputs'
+    help='Bucket with WARP workflow outputs.'
 )
 @click.option(
     '--datasets-dir',
