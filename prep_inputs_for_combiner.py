@@ -125,7 +125,7 @@ def _move_locally(gvcf_by_sample, dataset, picard_file_by_sname_by_key):
     '--split-rounds',
     'split_rounds',
     is_flag=True,
-    help='Break samples into 2 groups to produce tests for the gVCF combiner'
+    help='Break samples into 2 groups to produce tests for the GVCF combiner.'
 )
 @click.option(
     '--randomise-pop-labels',
