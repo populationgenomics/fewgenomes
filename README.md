@@ -104,7 +104,7 @@ python prep_inputs_for_combiner.py \
 
 It will write sample maps csv files to `datasets/50genomes/sample-maps`:
 
-```bash
+```text
 $ cat datasets/50genomes-gvcf/sample-maps
 50genomes-gvcf-all.csv  50genomes-gvcf-round1.csv  50genomes-gvcf-round2.csv
 ```
