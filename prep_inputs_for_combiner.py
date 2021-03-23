@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-Uploads GVCFs and QC files to CPG and senerates sample maps for CPG-QC
+Uploads GVCFs and QC files to CPG and generates sample maps for CPG-QC
 """
 
 import sys
