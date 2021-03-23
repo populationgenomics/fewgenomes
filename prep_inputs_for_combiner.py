@@ -114,7 +114,7 @@ def _move_locally(gvcf_by_sample, dataset, picard_file_by_sname_by_key):
     '--datasets-dir',
     'datasets_dir',
     default='datasets',
-    help='Output folder. Default is "datasets/"'
+    help='Output folder. Default is "datasets/".'
 )
 @click.option(
     '--work-dir',
