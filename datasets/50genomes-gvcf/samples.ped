@@ -1,0 +1,48 @@
+Family.ID	Individual.ID	Paternal.ID	Maternal.ID	Gender	Phenotype	Population	Other.info	Relationships.from.Pemberton.et.al.AJHG.2010	Broad.IBD.Analysis	sequence_read	alignment	high_coverage_alignment	exome_alignment	gvcf	gatksv_cram
+Y117	NA19240	NA19239	NA19238	2	0	YRI	child	Half Sibling of NA18913	cryptic 3nd order relationship to NA18914	True	True	True	True	True	
+CLM66	HG01552	HG01550	HG01551	1	0	CLM	child	0		False	False	False	False	True	
+NA18906	NA18906	0	0	2	0	YRI	child	0		False	False	False	False	True	
+1349	NA10854	NA11839	NA11840	2	0	CEU	mother	0		False	False	False	False	True	
+CLM40	HG01385	HG01383	HG01384	2	0	CLM	child	0		False	False	False	False	True	
+IBS001	HG01502	HG01500	HG01501	1	0	IBS	child	0		False	False	False	False	True	
+Y071	NA19142	NA19141	NA19140	1	0	YRI	child	0		False	False	False	False	True	
+IBS046	HG01763	HG01761	HG01762	2	0	IBS	child	0		False	False	False	False	True	
+Y018	NA18852	0	0	2	0	YRI	mother	0		False	False	False	False	True	
+CLM07	HG01135	HG01133	0	1	0	CLM	child	0		False	False	False	False	True	
+m023	NA19748	NA19747	NA19746	2	0	MXL	child	0		False	False	False	False	True	
+IBS034	HG01696	HG01694	HG01695	1	0	IBS	child	0		False	False	False	False	True	
+SH073	HG00655	HG00653	HG00654	2	0	CHS	child	0		False	False	False	False	True	
+BB05	HG01891	HG01890	HG01889	2	0	ACB	child	0		False	False	False	False	True	
+PR12	HG01056	HG01054	HG01055	1	0	PUR	child	0		False	False	False	False	True	
+PEL48	HG02279	HG02277	HG02278	1	0	PEL	child	0		False	False	False	False	True	
+CLM23	HG01279	HG01277	HG01278	2	0	CLM	child	0		False	False	False	False	True	
+IBS026	HG01671	HG01672	HG01670	1	0	IBS	child	0		False	False	False	False	True	
+1334	NA12239	0	0	2	0	CEU	mat grandmother	0		False	False	False	False	True	
+1454	NA12801	NA12812	NA12813	1	0	CEU	father	Niece/Nephew of NA07045		False	False	False	False	True	
+Y036	NA18935	NA18934	NA18933	1	0	YRI	child	0		False	False	False	False	True	
+m017	NA19727	NA19726	NA19725	1	0	MXL	child	0	cryptic 3nd order relationship to NA19738	False	False	False	False	True	
+SH054	HG00585	HG00583	HG00584	2	0	CHS	child	0	cryptic 2nd order relationship to HG00577; cryptic 3nd order relationship to HG00579	False	False	False	False	True	
+m007	NA19659	NA19658	NA19657	2	0	MXL	child	0	cryptic 3nd order relationship to NA19787; cryptic 3nd order relationship to NA19753	False	False	False	False	True	
+1350	NA10855	NA11831	NA11832	2	0	CEU	mother	0		False	False	False	False	True	
+1349	NA11839	0	0	1	0	CEU	mat grandfather	0		False	False	False	False	True	
+m016	NA19724	NA19723	NA19722	1	0	MXL	child	0		False	False	False	False	True	
+2467	NA20279	NA20278	NA20282	1	0	ASW	child,  sibling of NA20284 and NA20285		cryptic parent/child NA20282; cryptic 2nd order relationship to NA20284; cryptic 3nd order relationship to NA20302; cryptic 3nd order relationship to NA20313	False	False	False	False	True	
+1346	NA10857	NA12043	NA12044	1	0	CEU	father	0		False	False	False	False	True	
+BB06	HG01895	HG01912	HG01894	1	0	ACB	child	0		False	False	False	False	True	
+SH086	HG00694	HG00692	HG00693	1	0	CHS	child	0		False	False	False	False	True	
+SH025	HG00477	HG00475	HG00476	1	0	CHS	child	0		False	False	False	False	True	
+PEL014	HG01937	HG01935	HG01936	1	0	PEL	child	0		False	False	False	False	True	
+PEL29	HG01993	HG01991	HG01992	2	0	PEL	child	0		False	False	False	False	True	
+BB24	HG02321	HG02281	HG02282	2	0	ACB	child	0		False	False	False	False	True	
+SH076	HG00664	HG00662	HG00663	1	0	CHS	child	0		False	False	False	False	True	
+m024	NA19751	NA19750	NA19749	1	0	MXL	child	0		False	False	False	False	True	
+PR28	HG01084	HG01082	HG01083	2	0	PUR	child	0		False	False	False	False	True	
+SH032	HG00512	0	0	1	0	CHS	father	0	cryptic sibling of HG00501; cryptic sibling of HG00524; cryptic 2nd order relationship to HG00502; cryptic 2nd order relationship to HG00526	False	False	False	False	True	
+Y077	NA19127	0	0	2	0	YRI	mother	0		False	False	False	False	True	
+1420	NA10839	NA12005	NA12006	2	0	CEU	mother	0		False	False	False	False	True	
+Y047	NA19173	NA19171	NA19172	1	0	YRI	child	0		False	False	False	False	True	
+VN066	HG02074	HG02076	HG02075	1	0	KHV	child	0		False	False	False	False	True	
+SH009	HG00429	HG00427	HG00428	1	0	CHS	child	0	cryptic 3nd order relationship to HG00418	False	False	False	False	True	
+CLM17	HG01261	HG01259	HG01260	1	0	CLM	child	0		False	False	False	False	True	
+PR18	HG01074	HG01072	HG01073	1	0	PUR	child	0		False	False	False	False	True	
+2436	NA19983	NA19982	NA19713	2	0	ASW	child	Niece/Nephew of NA19985	cryptic 2nd order relationship to NA19985	False	False	False	False	True	
