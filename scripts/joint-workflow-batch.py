@@ -287,7 +287,7 @@ def main(  # pylint: disable=R0913,R0914
                 '--billing_project has to be specified (unless --dry_run is set)'
             )
 
-    backend = hb.ServiceBackend(billing_project=billing_project, bucket=os.path.join(output_bucket, 'hail'))
+    backend = hb.ServiceBackend(billing_project=billing_project, bucket=os.path.join(output_bucket, 'hail').replace('gs://', ''))
     b = hb.Batch('VariantCallingOFTHEFUTURE', backend=backend)
 
     sample_map_df = pd.read_csv(sample_map_path, sep='\t', names=['sample', 'gvcf'])
