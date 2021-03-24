@@ -6,6 +6,12 @@ import subprocess
 output = os.getenv('OUTPUT')
 assert output and output.startswith('gs://cpg-fewgenomes-test/')
 
-subprocess.check_output(
-    ['gsutil', 'mv', 'gs://cpg-fewgenomes-upload/cas-simons', output]
+subprocess.run(
+    ['gsutil', 'mv', 'gs://cpg-fewgenomes-upload/cas-simons/*', output]
+)
+
+subprocess.run(['cat', f'{output}/NA12878-HIGH.bam.md5sum'])
+
+subprocess.run(
+    f'gsutil cat {output}/NA12878-HIGH.bam | md5sum', shell=True
 )
