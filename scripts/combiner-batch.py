@@ -18,7 +18,7 @@ batch = hb.Batch(name='dataproc example', backend=service_backend)
 
 dataproc.hail_dataproc_job(
     batch,
-    'combiner-on-dataproc.sh'
+    'combiner-on-dataproc.sh',
     max_age='8h',
     packages=['joint-calling', 'click', 'cpg-gnomad', 'google', 'slackclient', 'fsspec', 'sklearn', 'gcloud'],
     init=['gs://cpg-reference/hail_dataproc/install_phantomjs.sh'],
