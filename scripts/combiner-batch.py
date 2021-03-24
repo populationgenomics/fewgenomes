@@ -17,11 +17,9 @@ service_backend = hb.ServiceBackend(
 
 batch = hb.Batch(name='dataproc example', backend=service_backend)
 
-script_path = subprocess.check_output(['which', 'combine_gvcfs.py']).decode().strip()
-
 dataproc.hail_dataproc_job(
     batch,
-    f'{script_path} \
+    f'run-python-script.py combiner-on-dataproc.py \
 --sample-map gs://cpg-fewgenomes-temporary/joint-calling/50genomes-gcs-au-round1.csv \
 --out-mt gs://cpg-fewgenomes-temporary/test-dataproc-package/50genomes.mt \
 --bucket gs://cpg-fewgenomes-temporary/work/vcf-combiner/test-dataproc-package/ \
