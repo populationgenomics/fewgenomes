@@ -3,6 +3,7 @@
 import os
 import hail as hl
 import hailtop.batch as hb
+import subprocess
 from analysis_runner import dataproc
 
 OUTPUT = os.getenv('OUTPUT')
@@ -16,9 +17,11 @@ service_backend = hb.ServiceBackend(
 
 batch = hb.Batch(name='dataproc example', backend=service_backend)
 
+script_path = subprocess.check_output(['which', 'combine_gvcfs.py']).decode().strip()
+
 dataproc.hail_dataproc_job(
     batch,
-    'combine_gvcfs.py \
+    f'{script_path} \
 --sample-map gs://cpg-fewgenomes-temporary/joint-calling/50genomes-gcs-au-round1.csv \
 --out-mt gs://cpg-fewgenomes-temporary/test-dataproc-package/50genomes.mt \
 --bucket gs://cpg-fewgenomes-temporary/work/vcf-combiner/test-dataproc-package/ \
