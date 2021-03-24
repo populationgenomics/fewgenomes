@@ -23,7 +23,7 @@ dataproc.hail_dataproc_job(
  	 f'--bucket gs://cpg-fewgenomes-temporary/work/vcf-combiner/test-dataproc-package/ '
  	 f'--local-tmp-dir tmp'),
     max_age='1h',
-    packages=['joint-calling', 'click', 'cpg-gnomad', 'google', 'slackclient', 'fsspec', 'sklearn', 'google-cloud-sdk'],
+    packages=['joint-calling', 'click', 'cpg-gnomad', 'google', 'slackclient', 'fsspec', 'sklearn', 'gcloud'],
     init=['gs://cpg-reference/hail_dataproc/install_phantomjs.sh'],
 )
 
