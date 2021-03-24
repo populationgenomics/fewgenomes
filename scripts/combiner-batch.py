@@ -18,14 +18,11 @@ batch = hb.Batch(name='dataproc example', backend=service_backend)
 
 dataproc.hail_dataproc_job(
     batch,
-    (f'combine_gvcfs.py --sample-map gs://cpg-fewgenomes-temporary/joint-calling/50genomes-gcs-au-round1.csv '
- 	 f'--out-mt gs://cpg-fewgenomes-temporary/test-dataproc-package/50genomes.mt '
- 	 f'--bucket gs://cpg-fewgenomes-temporary/work/vcf-combiner/test-dataproc-package/ '
- 	 f'--local-tmp-dir tmp'),
-    max_age='1h',
+    'combiner-on-dataproc.sh'
+    max_age='8h',
     packages=['joint-calling', 'click', 'cpg-gnomad', 'google', 'slackclient', 'fsspec', 'sklearn', 'gcloud'],
     init=['gs://cpg-reference/hail_dataproc/install_phantomjs.sh'],
+    num_secondary_workers=10,
 )
 
 batch.run()
-
