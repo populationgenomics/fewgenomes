@@ -656,7 +656,7 @@ def add_subset_noalt_step(
     """
     """
     j = b.new_job('SubsetToNoalt')
-    j.image('quay.io/biocontainers/bcftools:1.10.2--h4f4756c_2/')
+    j.image('quay.io/biocontainers/bcftools:1.10.2--h4f4756c_2')
     mem_gb = 8
     j.memory(f'{mem_gb}G')
     j.storage(f'{disk_size}G')
