@@ -708,7 +708,7 @@ def add_combiner_step(
         'gvcf': input_gvcfs
     }
     gvcf_df = pd.DataFrame.from_records(d, columns=list(d.keys()))
-    gvcfs_for_combiner_path = os.path.join(tmp_bucket, 'gvcfs_for_combiner.tsv')
+    gvcfs_for_combiner_path = os.path.join(tmp_bucket, 'gvcfs_for_combiner.csv')
     gvcf_df.to_csv(gvcfs_for_combiner_path, sep=',', index=False)
     gvcfs_for_combiner_input = b.read_input(gvcfs_for_combiner_path)
 
