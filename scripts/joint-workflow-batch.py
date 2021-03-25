@@ -350,25 +350,25 @@ def main(  # pylint: disable=R0913,R0914
     )
     noalt_regions = b.read_input('gs://cpg-reference/hg38/v0/noalt.bed')
 
-    reblocked_gvcfs = [
-        add_reblock_gvcfs_step(b, gvcf, small_disk).output_gvcf
-        for gvcf in gvcfs
-    ]
+    # reblocked_gvcfs = [
+    #     add_reblock_gvcfs_step(b, gvcf, small_disk).output_gvcf
+    #     for gvcf in gvcfs
+    # ]
     gvcfs_for_combiner = [
         os.path.join(output_bucket, 'combiner', sample + '.g.vcf.gz')
         for sample in sample_names
     ]
-    subset_gvcf_jobs = [
-        add_subset_noalt_step(
-            b,
-            input_gvcf=gvcf,
-            output_gvcf_path=output_gvcf_path,
-            disk_size=small_disk,
-            noalt_regions=noalt_regions
-        )
-        for output_gvcf_path, gvcf 
-        in zip(gvcfs_for_combiner, reblocked_gvcfs)
-    ]
+    # subset_gvcf_jobs = [
+    #     add_subset_noalt_step(
+    #         b,
+    #         input_gvcf=gvcf,
+    #         output_gvcf_path=output_gvcf_path,
+    #         disk_size=small_disk,
+    #         noalt_regions=noalt_regions
+    #     )
+    #     for output_gvcf_path, gvcf 
+    #     in zip(gvcfs_for_combiner, reblocked_gvcfs)
+    # ]
 
     # # ToDo: do QC and combining outside of Hail, then run VQSR, then import into hail?
     # dataproc.hail_dataproc_job(
@@ -378,16 +378,25 @@ def main(  # pylint: disable=R0913,R0914
     #     packages=['click', 'selenium'],
     #     init=['gs://cpg-reference/hail_dataproc/install_phantomjs.sh'],
     # )
-
-    combined_mt_path = os.path.join(output_bucket, 'combiner',  '100genomes.mt')
+    
+    combiner_bucket = os.path.join(output_bucket, 'combiner')
+    combined_mt_path = os.path.join(combiner_bucket, '100genomes.mt')
+    d = {
+        'sample': sample_names,
+        'population': ['' for _ in sample_names],
+        'gvcf': gvcfs_for_combiner
+    }
+    gvcf_df = pd.DataFrame.from_records(d, columns=list(d.keys()))
+    gvcfs_for_combiner_path = os.path.join(combiner_bucket, 'gvcfs_for_combiner.csv')
+    gvcf_df.to_csv(gvcfs_for_combiner_path, sep=',', index=False)
+    gvcfs_for_combiner_input = b.read_input(gvcfs_for_combiner_path)
     combiner_job = add_combiner_step(
         b,
-        input_gvcfs=gvcfs_for_combiner,
-        sample_names=sample_names,
-        tmp_bucket=os.path.join(output_bucket, 'combiner'),
+        input_csv=gvcfs_for_combiner_input,
+        tmp_bucket=combiner_bucket,
         combined_mt_path=combined_mt_path,
     )
-    combiner_job.depends_on(*subset_gvcf_jobs)
+    # combiner_job.depends_on(*subset_gvcf_jobs)
     
     combined_vcf_path = os.path.join(output_bucket, 'combined.vcf.gz')
     mt2vcf_job = add_mt2vcf_step(
@@ -690,33 +699,17 @@ def add_subset_noalt_step(
 
 def add_combiner_step(
     b: hb.Batch,
-    input_gvcfs: List[str],
-    sample_names: List[str],
+    input_csv: str,
     tmp_bucket: str,
     combined_mt_path: str,
 ) -> Job:
     """
     """
-    # j = b.new_job('GvcfCombiner')
-    # j.image(DRIVER_IMAGE)
-    # mem_gb = 64
-    # j.memory(f'{mem_gb}G')
-    # j.storage(f'{disk_size}G')
-    d = {
-        'sample': sample_names,
-        'population': ['' for _ in sample_names],
-        'gvcf': input_gvcfs
-    }
-    gvcf_df = pd.DataFrame.from_records(d, columns=list(d.keys()))
-    gvcfs_for_combiner_path = os.path.join(tmp_bucket, 'gvcfs_for_combiner.csv')
-    gvcf_df.to_csv(gvcfs_for_combiner_path, sep=',', index=False)
-    gvcfs_for_combiner_input = b.read_input(gvcfs_for_combiner_path)
-
     j = dataproc.hail_dataproc_job(
         b,
         f'run-python-script.py '
         f'combine_gvcfs.py '
-        f'--sample-map {gvcfs_for_combiner_input} '
+        f'--sample-map {input_csv} '
         f'--out-mt {combined_mt_path} '
         f'--bucket {tmp_bucket}/work '
         f'--local-tmp-dir combiner-tmp '
