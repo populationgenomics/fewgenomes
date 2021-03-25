@@ -295,6 +295,7 @@ def main(  # pylint: disable=R0913,R0914
         b.read_input_group(**{'g.vcf.gz': gvcf, 'g.vcf.gz.tbi': gvcf + '.tbi'})
         for gvcf in sample_map_df['gvcf']
     ]
+    sample_names = sample_map_df['sample']
 
     # Make a 2.5:1 interval number to samples in callset ratio interval list.
     # We allow overriding the behavior by specifying the desired number of vcfs
@@ -353,17 +354,23 @@ def main(  # pylint: disable=R0913,R0914
         add_reblock_gvcfs_step(b, gvcf, small_disk).output_gvcf
         for gvcf in gvcfs
     ]
+    gvcfs_for_combiner = [
+        os.path.join(output_bucket, 'combiner', sample + '.g.vcf.gz')
+        for sample in sample_names
+    ]
     subset_gvcf_jobs = [
         add_subset_noalt_step(
-            b, 
-            input_gvcf=gvcf, 
-            disk_size=small_disk, 
+            b,
+            input_gvcf=gvcf,
+            output_gvcf_path=output_gvcf_path,
+            disk_size=small_disk,
             noalt_regions=noalt_regions
         )
-        for gvcf in reblocked_gvcfs
+        for output_gvcf_path, gvcf 
+        in zip(gvcfs_for_combiner, reblocked_gvcfs)
     ]
-    
-    # # ToDo: do QC and combining outside of Hail, then run VQSR, then import into hail
+
+    # # ToDo: do QC and combining outside of Hail, then run VQSR, then import into hail?
     # dataproc.hail_dataproc_job(
     #     b,
     #     f'combiner --output={OUTPUT}',
@@ -372,20 +379,20 @@ def main(  # pylint: disable=R0913,R0914
     #     init=['gs://cpg-reference/hail_dataproc/install_phantomjs.sh'],
     # )
 
-    combined_mt = f'{output_bucket}/combiner/100genomes.mt'
+    combined_mt_path = os.path.join(output_bucket, 'combiner',  '100genomes.mt')
     combiner_job = add_combiner_step(
         b,
-        input_gvcfs=[j.output_gvcf for j in subset_gvcf_jobs],
-        sample_names=sample_map_df['sample'],
+        input_gvcfs=gvcfs_for_combiner,
+        sample_names=sample_names,
         tmp_bucket=os.path.join(output_bucket, 'combiner'),
-        combined_mt=combined_mt,
+        combined_mt_path=combined_mt_path,
     )
     combiner_job.depends_on(*subset_gvcf_jobs)
     
     combined_vcf_path = os.path.join(output_bucket, 'combined.vcf.gz')
     mt2vcf_job = add_mt2vcf_step(
         b,
-        input_mt=combined_mt,
+        input_mt=combined_mt_path,
         output_vcf_path=combined_vcf_path,
         tmp_bucket=os.path.join(output_bucket, 'mt2vcf'),
     )
@@ -650,6 +657,7 @@ def add_reblock_gvcfs_step(
 def add_subset_noalt_step(
     b: hb.Batch,
     input_gvcf: hb.ResourceGroup,
+    output_gvcf_path: str,
     disk_size: int,
     noalt_regions: str,
 ) -> Job:
@@ -676,15 +684,16 @@ def add_subset_noalt_step(
     
     bcftools index --tbi {j.output_gvcf['g.vcf.gz']}
         """)
+    b.write_output(j.output_vcf, output_gvcf_path.replace('.g.vcf.gz', ''))
     return j
 
 
 def add_combiner_step(
     b: hb.Batch,
-    input_gvcfs: List[hb.ResourceGroup],
+    input_gvcfs: List[str],
     sample_names: List[str],
     tmp_bucket: str,
-    combined_mt: str,
+    combined_mt_path: str,
 ) -> Job:
     """
     """
@@ -693,17 +702,22 @@ def add_combiner_step(
     # mem_gb = 64
     # j.memory(f'{mem_gb}G')
     # j.storage(f'{disk_size}G')
-    d = {'sample': sample_names, 'population': ['' for _ in sample_names], 'gvcf': [f['g.vcf.gz'] for f in input_gvcfs]}
-    gvcf_df = pd.DataFrame.from_records(d, columns=['sample', 'population', 'gvcf'])
+    d = {
+        'sample': sample_names,
+        'population': ['' for _ in sample_names],
+        'gvcf': input_gvcfs
+    }
+    gvcf_df = pd.DataFrame.from_records(d, columns=list(d.keys()))
     gvcfs_for_combiner_path = os.path.join(tmp_bucket, 'gvcfs_for_combiner.tsv')
     gvcf_df.to_csv(gvcfs_for_combiner_path, sep=',', index=False)
     gvcfs_for_combiner_input = b.read_input(gvcfs_for_combiner_path)
 
     j = dataproc.hail_dataproc_job(
         b,
-        f'run-python-script.py combine_gvcfs.py '
+        f'run-python-script.py '
+        f'combine_gvcfs.py '
         f'--sample-map {gvcfs_for_combiner_input} '
-        f'--out-mt {combined_mt} '
+        f'--out-mt {combined_mt_path} '
         f'--bucket {tmp_bucket}/work '
         f'--local-tmp-dir combiner-tmp '
         f'--hail-billing fewgenomes',
