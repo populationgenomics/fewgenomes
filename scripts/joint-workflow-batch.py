@@ -684,7 +684,7 @@ def add_subset_noalt_step(
     
     bcftools index --tbi {j.output_gvcf['g.vcf.gz']}
         """)
-    b.write_output(j.output_vcf, output_gvcf_path.replace('.g.vcf.gz', ''))
+    b.write_output(j.output_gvcf, output_gvcf_path.replace('.g.vcf.gz', ''))
     return j
 
 
