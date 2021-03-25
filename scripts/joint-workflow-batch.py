@@ -389,10 +389,9 @@ def main(  # pylint: disable=R0913,R0914
     gvcf_df = pd.DataFrame.from_records(d, columns=list(d.keys()))
     gvcfs_for_combiner_path = os.path.join(combiner_bucket, 'gvcfs_for_combiner.csv')
     gvcf_df.to_csv(gvcfs_for_combiner_path, sep=',', index=False)
-    gvcfs_for_combiner_input = b.read_input(gvcfs_for_combiner_path)
     combiner_job = add_combiner_step(
         b,
-        input_csv=gvcfs_for_combiner_input,
+        input_csv_path=gvcfs_for_combiner_path,
         tmp_bucket=combiner_bucket,
         combined_mt_path=combined_mt_path,
     )
@@ -699,7 +698,7 @@ def add_subset_noalt_step(
 
 def add_combiner_step(
     b: hb.Batch,
-    input_csv: str,
+    input_csv_path: str,
     tmp_bucket: str,
     combined_mt_path: str,
 ) -> Job:
@@ -709,7 +708,7 @@ def add_combiner_step(
         b,
         f'run-python-script.py '
         f'combine_gvcfs.py '
-        f'--sample-map {input_csv} '
+        f'--sample-map {input_csv_path} '
         f'--out-mt {combined_mt_path} '
         f'--bucket {tmp_bucket}/work '
         f'--local-tmp-dir combiner-tmp '
