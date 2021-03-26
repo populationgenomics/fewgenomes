@@ -389,13 +389,13 @@ def main(  # pylint: disable=R0913,R0914
     gvcf_df = pd.DataFrame.from_records(d, columns=list(d.keys()))
     gvcfs_for_combiner_path = os.path.join(combiner_bucket, 'gvcfs_for_combiner.csv')
     gvcf_df.to_csv(gvcfs_for_combiner_path, sep=',', index=False)
-    combiner_job = add_combiner_step(
-        b,
-        input_csv_path=gvcfs_for_combiner_path,
-        tmp_bucket=combiner_bucket,
-        combined_mt_path=combined_mt_path,
-        # depends_on=subset_gvcf_jobs,
-    )
+    # combiner_job = add_combiner_step(
+    #     b,
+    #     input_csv_path=gvcfs_for_combiner_path,
+    #     tmp_bucket=combiner_bucket,
+    #     combined_mt_path=combined_mt_path,
+    #     depends_on=subset_gvcf_jobs,
+    # )
     
     combined_vcf_path = os.path.join(output_bucket, 'combined.vcf.gz')
     mt2vcf_job = add_mt2vcf_step(
@@ -403,8 +403,8 @@ def main(  # pylint: disable=R0913,R0914
         input_mt=combined_mt_path,
         output_vcf_path=combined_vcf_path,
         tmp_bucket=os.path.join(output_bucket, 'mt2vcf'),
+        # depends_on=[combiner_job],
     )
-    mt2vcf_job.depends_on(combiner_job)
     combined_vcf = b.read_input(combined_vcf_path)
 
     split_intervals_job = add_split_intervals_step(
@@ -728,6 +728,7 @@ def add_mt2vcf_step(
     input_mt: str,
     output_vcf_path: str,
     tmp_bucket: str,
+    depends_on: List = None,
 ) -> Job:
     j = dataproc.hail_dataproc_job(
         b,
@@ -739,6 +740,7 @@ def add_mt2vcf_step(
         max_age='8h',
         packages=['joint-calling', 'click', 'cpg-gnomad', 'google', 'slackclient', 'fsspec', 'sklearn', 'gcloud'],
         num_secondary_workers=10,
+        depends_on=depends_on,
     )
     return j
 
