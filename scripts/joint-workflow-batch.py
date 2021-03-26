@@ -350,25 +350,25 @@ def main(  # pylint: disable=R0913,R0914
     )
     noalt_regions = b.read_input('gs://cpg-reference/hg38/v0/noalt.bed')
 
-    # reblocked_gvcfs = [
-    #     add_reblock_gvcfs_step(b, gvcf, small_disk).output_gvcf
-    #     for gvcf in gvcfs
-    # ]
+    reblocked_gvcfs = [
+        add_reblock_gvcfs_step(b, gvcf, small_disk).output_gvcf
+        for gvcf in gvcfs
+    ]
     gvcfs_for_combiner = [
         os.path.join(output_bucket, 'combiner', sample + '.g.vcf.gz')
         for sample in sample_names
     ]
-    # subset_gvcf_jobs = [
-    #     add_subset_noalt_step(
-    #         b,
-    #         input_gvcf=gvcf,
-    #         output_gvcf_path=output_gvcf_path,
-    #         disk_size=small_disk,
-    #         noalt_regions=noalt_regions
-    #     )
-    #     for output_gvcf_path, gvcf 
-    #     in zip(gvcfs_for_combiner, reblocked_gvcfs)
-    # ]
+    subset_gvcf_jobs = [
+        add_subset_noalt_step(
+            b,
+            input_gvcf=gvcf,
+            output_gvcf_path=output_gvcf_path,
+            disk_size=small_disk,
+            noalt_regions=noalt_regions
+        )
+        for output_gvcf_path, gvcf 
+        in zip(gvcfs_for_combiner, reblocked_gvcfs)
+    ]
 
     # # ToDo: do QC and combining outside of Hail, then run VQSR, then import into hail?
     # dataproc.hail_dataproc_job(
@@ -395,7 +395,7 @@ def main(  # pylint: disable=R0913,R0914
         tmp_bucket=combiner_bucket,
         combined_mt_path=combined_mt_path,
     )
-    # combiner_job.depends_on(*subset_gvcf_jobs)
+    combiner_job.depends_on(*subset_gvcf_jobs)
     
     combined_vcf_path = os.path.join(output_bucket, 'combined.vcf.gz')
     mt2vcf_job = add_mt2vcf_step(
@@ -687,6 +687,7 @@ def add_subset_noalt_step(
     bcftools view \\
         {input_gvcf['g.vcf.gz']} \\
         -T {noalt_regions} \\
+        | bcftools annotate -x INFO/DS \\
         -o {j.output_gvcf['g.vcf.gz']} \\
         -Oz
     
