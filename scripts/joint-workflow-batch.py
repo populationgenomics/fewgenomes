@@ -728,7 +728,6 @@ def add_combiner_step(
         f'--sample-map {input_csv_path} '
         f'--out-mt {combined_mt_path} '
         f'--bucket {tmp_bucket}/work '
-        f'--local-tmp-dir combiner-tmp '
         f'--hail-billing fewgenomes',
         max_age='8h',
         packages=[
@@ -760,7 +759,8 @@ def add_mt2vcf_step(
         b,
         f'run-python-script.py mt_to_vcf.py '
         f'--mt {input_mt} '
-        f'-o {output_vcf_path} ',
+        f'-o {output_vcf_path} '
+        f'--overwrite',
         max_age='8h',
         packages=[
             'joint-calling',
