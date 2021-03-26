@@ -421,7 +421,7 @@ def main(  # pylint: disable=R0913,R0914,R0915
     # split_intervals_job.depends_on(mt2vcf_job)
     intervals = split_intervals_job.intervals
 
-    combined_vcf = add_tabix_step(b, combined_vcf_path, medium_disk)
+    combined_vcf = add_tabix_step(b, combined_vcf_path, medium_disk).combined_vcf
 
     gnarly_output_vcfs = [
         add_gnarly_genotyper_on_vcf_step(
