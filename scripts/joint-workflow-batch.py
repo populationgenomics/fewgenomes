@@ -350,25 +350,25 @@ def main(  # pylint: disable=R0913,R0914
     )
     noalt_regions = b.read_input('gs://cpg-reference/hg38/v0/noalt.bed')
 
-    reblocked_gvcfs = [
-        add_reblock_gvcfs_step(b, gvcf, small_disk).output_gvcf
-        for gvcf in gvcfs
-    ]
+    # reblocked_gvcfs = [
+    #     add_reblock_gvcfs_step(b, gvcf, small_disk).output_gvcf
+    #     for gvcf in gvcfs
+    # ]
     gvcfs_for_combiner = [
         os.path.join(output_bucket, 'combiner', sample + '.g.vcf.gz')
         for sample in sample_names
     ]
-    subset_gvcf_jobs = [
-        add_subset_noalt_step(
-            b,
-            input_gvcf=gvcf,
-            output_gvcf_path=output_gvcf_path,
-            disk_size=small_disk,
-            noalt_regions=noalt_regions
-        )
-        for output_gvcf_path, gvcf 
-        in zip(gvcfs_for_combiner, reblocked_gvcfs)
-    ]
+    # subset_gvcf_jobs = [
+    #     add_subset_noalt_step(
+    #         b,
+    #         input_gvcf=gvcf,
+    #         output_gvcf_path=output_gvcf_path,
+    #         disk_size=small_disk,
+    #         noalt_regions=noalt_regions
+    #     )
+    #     for output_gvcf_path, gvcf 
+    #     in zip(gvcfs_for_combiner, reblocked_gvcfs)
+    # ]
 
     # # ToDo: do QC and combining outside of Hail, then run VQSR, then import into hail?
     # dataproc.hail_dataproc_job(
@@ -394,8 +394,8 @@ def main(  # pylint: disable=R0913,R0914
         input_csv_path=gvcfs_for_combiner_path,
         tmp_bucket=combiner_bucket,
         combined_mt_path=combined_mt_path,
+        # depends_on=subset_gvcf_jobs,
     )
-    combiner_job.depends_on(*subset_gvcf_jobs)
     
     combined_vcf_path = os.path.join(output_bucket, 'combined.vcf.gz')
     mt2vcf_job = add_mt2vcf_step(
@@ -702,6 +702,7 @@ def add_combiner_step(
     input_csv_path: str,
     tmp_bucket: str,
     combined_mt_path: str,
+    depends_on: List = None,
 ) -> Job:
     """
     """
@@ -717,6 +718,7 @@ def add_combiner_step(
         max_age='8h',
         packages=['joint-calling', 'click', 'cpg-gnomad', 'google', 'slackclient', 'fsspec', 'sklearn', 'gcloud'],
         num_secondary_workers=10,
+        depends_on=depends_on,
     )
     return j
 
