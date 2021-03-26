@@ -358,23 +358,23 @@ def main(  # pylint: disable=R0913,R0914,R0915
     )
     noalt_regions = b.read_input('gs://cpg-reference/hg38/v0/noalt.bed')
 
-    reblocked_gvcfs = [
-        add_reblock_gvcfs_step(b, gvcf, small_disk).output_gvcf for gvcf in gvcfs
-    ]
+    # reblocked_gvcfs = [
+    #     add_reblock_gvcfs_step(b, gvcf, small_disk).output_gvcf for gvcf in gvcfs
+    # ]
     gvcfs_for_combiner = [
         os.path.join(output_bucket, 'combiner', sample + '.g.vcf.gz')
         for sample in sample_names
     ]
-    subset_gvcf_jobs = [
-        add_subset_noalt_step(
-            b,
-            input_gvcf=gvcf,
-            output_gvcf_path=output_gvcf_path,
-            disk_size=small_disk,
-            noalt_regions=noalt_regions,
-        )
-        for output_gvcf_path, gvcf in zip(gvcfs_for_combiner, reblocked_gvcfs)
-    ]
+    # subset_gvcf_jobs = [
+    #     add_subset_noalt_step(
+    #         b,
+    #         input_gvcf=gvcf,
+    #         output_gvcf_path=output_gvcf_path,
+    #         disk_size=small_disk,
+    #         noalt_regions=noalt_regions,
+    #     )
+    #     for output_gvcf_path, gvcf in zip(gvcfs_for_combiner, reblocked_gvcfs)
+    # ]
 
     # # ToDo: do QC and combining outside of Hail, then run VQSR, then import into hail?
     # dataproc.hail_dataproc_job(
@@ -395,21 +395,20 @@ def main(  # pylint: disable=R0913,R0914,R0915
     gvcf_df = pd.DataFrame.from_records(d, columns=list(d.keys()))
     gvcfs_for_combiner_path = os.path.join(combiner_bucket, 'gvcfs_for_combiner.csv')
     gvcf_df.to_csv(gvcfs_for_combiner_path, sep=',', index=False)
-    combiner_job = add_combiner_step(
-        b,
-        input_csv_path=gvcfs_for_combiner_path,
-        tmp_bucket=combiner_bucket,
-        combined_mt_path=combined_mt_path,
-        depends_on=subset_gvcf_jobs,
-    )
+    # combiner_job = add_combiner_step(
+    #     b,
+    #     input_csv_path=gvcfs_for_combiner_path,
+    #     tmp_bucket=combiner_bucket,
+    #     combined_mt_path=combined_mt_path,
+    #     depends_on=subset_gvcf_jobs,
+    # )
 
     combined_vcf_path = os.path.join(output_bucket, 'combined.vcf.gz')
     mt2vcf_job = add_mt2vcf_step(
         b,
         input_mt=combined_mt_path,
         output_vcf_path=combined_vcf_path,
-        tmp_bucket=os.path.join(output_bucket, 'mt2vcf'),
-        depends_on=[combiner_job],
+        # depends_on=[combiner_job],
     )
     combined_vcf = b.read_input(combined_vcf_path)
 
@@ -752,7 +751,6 @@ def add_mt2vcf_step(
     b: hb.Batch,
     input_mt: str,
     output_vcf_path: str,
-    tmp_bucket: str,
     depends_on: List = None,
 ) -> Job:
     """
@@ -762,9 +760,7 @@ def add_mt2vcf_step(
         b,
         f'run-python-script.py mt_to_vcf.py '
         f'--mt {input_mt} '
-        f'--bucket {tmp_bucket}/vcf2mt/work '
-        f'-o {output_vcf_path} '
-        f'--hail-billing fewgenomes',
+        f'-o {output_vcf_path} ',
         max_age='8h',
         packages=[
             'joint-calling',
