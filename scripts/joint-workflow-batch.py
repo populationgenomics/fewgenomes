@@ -241,8 +241,13 @@ BROAD_REF_BUCKET = 'gs://gcp-public-data--broad-references/hg38/v0'
 )
 @click.option('--dry_run', 'dry_run', is_flag=True, default=False)
 @click.option('--keep_scratch', 'keep_scratch', is_flag=True, default=False)
-@click.option('--billing_project', 'billing_project', type=str, default=os.getenv('HAIL_BILLING_PROJECT'))
-def main(  # pylint: disable=R0913,R0914
+@click.option(
+    '--billing_project',
+    'billing_project',
+    type=str,
+    default=os.getenv('HAIL_BILLING_PROJECT'),
+)
+def main(  # pylint: disable=R0913,R0914,R0915
     sample_map_path: str,
     output_bucket: str,
     callset_name: str,
@@ -287,7 +292,10 @@ def main(  # pylint: disable=R0913,R0914
                 '--billing_project has to be specified (unless --dry_run is set)'
             )
 
-    backend = hb.ServiceBackend(billing_project=billing_project, bucket=os.path.join(output_bucket, 'hail').replace('gs://', ''))
+    backend = hb.ServiceBackend(
+        billing_project=billing_project,
+        bucket=os.path.join(output_bucket, 'hail').replace('gs://', ''),
+    )
     b = hb.Batch('VariantCallingOFTHEFUTURE', backend=backend)
 
     sample_map_df = pd.read_csv(sample_map_path, sep='\t', names=['sample', 'gvcf'])
@@ -350,25 +358,23 @@ def main(  # pylint: disable=R0913,R0914
     )
     noalt_regions = b.read_input('gs://cpg-reference/hg38/v0/noalt.bed')
 
-    # reblocked_gvcfs = [
-    #     add_reblock_gvcfs_step(b, gvcf, small_disk).output_gvcf
-    #     for gvcf in gvcfs
-    # ]
+    reblocked_gvcfs = [
+        add_reblock_gvcfs_step(b, gvcf, small_disk).output_gvcf for gvcf in gvcfs
+    ]
     gvcfs_for_combiner = [
         os.path.join(output_bucket, 'combiner', sample + '.g.vcf.gz')
         for sample in sample_names
     ]
-    # subset_gvcf_jobs = [
-    #     add_subset_noalt_step(
-    #         b,
-    #         input_gvcf=gvcf,
-    #         output_gvcf_path=output_gvcf_path,
-    #         disk_size=small_disk,
-    #         noalt_regions=noalt_regions
-    #     )
-    #     for output_gvcf_path, gvcf 
-    #     in zip(gvcfs_for_combiner, reblocked_gvcfs)
-    # ]
+    subset_gvcf_jobs = [
+        add_subset_noalt_step(
+            b,
+            input_gvcf=gvcf,
+            output_gvcf_path=output_gvcf_path,
+            disk_size=small_disk,
+            noalt_regions=noalt_regions,
+        )
+        for output_gvcf_path, gvcf in zip(gvcfs_for_combiner, reblocked_gvcfs)
+    ]
 
     # # ToDo: do QC and combining outside of Hail, then run VQSR, then import into hail?
     # dataproc.hail_dataproc_job(
@@ -378,32 +384,32 @@ def main(  # pylint: disable=R0913,R0914
     #     packages=['click', 'selenium'],
     #     init=['gs://cpg-reference/hail_dataproc/install_phantomjs.sh'],
     # )
-    
+
     combiner_bucket = os.path.join(output_bucket, 'combiner')
     combined_mt_path = os.path.join(combiner_bucket, '100genomes.mt')
     d = {
         'sample': sample_names,
         'population': ['' for _ in sample_names],
-        'gvcf': gvcfs_for_combiner
+        'gvcf': gvcfs_for_combiner,
     }
     gvcf_df = pd.DataFrame.from_records(d, columns=list(d.keys()))
     gvcfs_for_combiner_path = os.path.join(combiner_bucket, 'gvcfs_for_combiner.csv')
     gvcf_df.to_csv(gvcfs_for_combiner_path, sep=',', index=False)
-    # combiner_job = add_combiner_step(
-    #     b,
-    #     input_csv_path=gvcfs_for_combiner_path,
-    #     tmp_bucket=combiner_bucket,
-    #     combined_mt_path=combined_mt_path,
-    #     depends_on=subset_gvcf_jobs,
-    # )
-    
+    combiner_job = add_combiner_step(
+        b,
+        input_csv_path=gvcfs_for_combiner_path,
+        tmp_bucket=combiner_bucket,
+        combined_mt_path=combined_mt_path,
+        depends_on=subset_gvcf_jobs,
+    )
+
     combined_vcf_path = os.path.join(output_bucket, 'combined.vcf.gz')
     mt2vcf_job = add_mt2vcf_step(
         b,
         input_mt=combined_mt_path,
         output_vcf_path=combined_vcf_path,
         tmp_bucket=os.path.join(output_bucket, 'mt2vcf'),
-        # depends_on=[combiner_job],
+        depends_on=[combiner_job],
     )
     combined_vcf = b.read_input(combined_vcf_path)
 
@@ -479,7 +485,7 @@ def main(  # pylint: disable=R0913,R0914
     #     'vcf.gz': 'gs://playground-au/batch/1e0bc3/1/output_vcf.vcf.gz',
     #     'vcf.gz.tbi': 'gs://playground-au/batch/1e0bc3/1/output_vcf.vcf.gz.tbi'
     # })
-    # 
+    #
     indels_variant_recalibrator_job = add_indels_variant_recalibrator_step(
         b,
         sites_only_variant_filtered_vcf=sites_only_gathered_vcf,
@@ -505,7 +511,7 @@ def main(  # pylint: disable=R0913,R0914
         snp_max_gaussians = 4
     elif is_huge_callset:
         snp_max_gaussians = 8
-    
+
     if is_huge_callset:
         # Run SNP recalibrator in a scattered mode
         model_file = add_snps_variant_recalibrator_create_model_step(
@@ -600,13 +606,13 @@ def main(  # pylint: disable=R0913,R0914
         )
         snps_recalibration = snps_recalibrator_job.recalibration
         snps_tranches = snps_recalibrator_job.tranches
-        
+
         gathered_vcf = add_final_gather_vcf_step(
             b,
             input_vcfs=hard_filtered_vcfs,
             disk_size=huge_disk,
         ).output_vcf
-        
+
         final_gathered_vcf = add_apply_recalibration_step(
             b,
             input_vcf=gathered_vcf,
@@ -638,6 +644,8 @@ def add_reblock_gvcfs_step(
     disk_size: int,
 ) -> Job:
     """
+    Runs ReblockGVCFs to annotate with allele-specific VCF INFO fields
+    required for recalibration
     """
     j = b.new_job('ReblocGVCFs')
     j.image(GATK_DOCKER)
@@ -646,19 +654,21 @@ def add_reblock_gvcfs_step(
     j.storage(f'{disk_size}G')
     j.declare_resource_group(
         output_gvcf={
-            'g.vcf.gz': '{root}.g.vcf.gz', 
-            'g.vcf.gz.tbi': '{root}.g.vcf.gz.tbi'
+            'g.vcf.gz': '{root}.g.vcf.gz',
+            'g.vcf.gz.tbi': '{root}.g.vcf.gz.tbi',
         }
     )
 
-    j.command(f"""
+    j.command(
+        f"""
     gatk --java-options "-Xms{mem_gb - 1}g" \\
         ReblockGVCF \\
         -V {input_gvcf['g.vcf.gz']} \\
         --drop-low-quals \\
         -do-qual-approx \\
         -O {j.output_gvcf['g.vcf.gz']} \\
-        --create-output-variant-index true""")
+        --create-output-variant-index true"""
+    )
     return j
 
 
@@ -670,6 +680,9 @@ def add_subset_noalt_step(
     noalt_regions: str,
 ) -> Job:
     """
+    1. Subset GVCF to main chromosomes to avoid downstream errors
+    2. Removes the DS INFO field that is added to some HGDP GVCFs to avoid errors
+       from Hail about mismatched INFO annotations
     """
     j = b.new_job('SubsetToNoalt')
     j.image('quay.io/biocontainers/bcftools:1.10.2--h4f4756c_2')
@@ -679,20 +692,22 @@ def add_subset_noalt_step(
     j.declare_resource_group(
         output_gvcf={
             'g.vcf.gz': '{root}.g.vcf.gz',
-            'g.vcf.gz.tbi': '{root}.g.vcf.gz.tbi'
+            'g.vcf.gz.tbi': '{root}.g.vcf.gz.tbi',
         }
     )
-    j.command(f"""set -e
-    
+    j.command(
+        f"""set -e
+
     bcftools view \\
         {input_gvcf['g.vcf.gz']} \\
         -T {noalt_regions} \\
         | bcftools annotate -x INFO/DS \\
         -o {j.output_gvcf['g.vcf.gz']} \\
         -Oz
-    
+
     bcftools index --tbi {j.output_gvcf['g.vcf.gz']}
-        """)
+        """
+    )
     b.write_output(j.output_gvcf, output_gvcf_path.replace('.g.vcf.gz', ''))
     return j
 
@@ -705,6 +720,7 @@ def add_combiner_step(
     depends_on: List = None,
 ) -> Job:
     """
+    Combine GVCFs into a matrix table
     """
     j = dataproc.hail_dataproc_job(
         b,
@@ -716,7 +732,16 @@ def add_combiner_step(
         f'--local-tmp-dir combiner-tmp '
         f'--hail-billing fewgenomes',
         max_age='8h',
-        packages=['joint-calling', 'click', 'cpg-gnomad', 'google', 'slackclient', 'fsspec', 'sklearn', 'gcloud'],
+        packages=[
+            'joint-calling',
+            'click',
+            'cpg-gnomad',
+            'google',
+            'slackclient',
+            'fsspec',
+            'sklearn',
+            'gcloud',
+        ],
         num_secondary_workers=10,
         depends_on=depends_on,
     )
@@ -730,6 +755,9 @@ def add_mt2vcf_step(
     tmp_bucket: str,
     depends_on: List = None,
 ) -> Job:
+    """
+    Convert a matrix table into a site-only VCF
+    """
     j = dataproc.hail_dataproc_job(
         b,
         f'run-python-script.py mt_to_vcf.py '
@@ -738,7 +766,16 @@ def add_mt2vcf_step(
         f'-o {output_vcf_path} '
         f'--hail-billing fewgenomes',
         max_age='8h',
-        packages=['joint-calling', 'click', 'cpg-gnomad', 'google', 'slackclient', 'fsspec', 'sklearn', 'gcloud'],
+        packages=[
+            'joint-calling',
+            'click',
+            'cpg-gnomad',
+            'google',
+            'slackclient',
+            'fsspec',
+            'sklearn',
+            'gcloud',
+        ],
         num_secondary_workers=10,
         depends_on=depends_on,
     )
@@ -1087,7 +1124,7 @@ def add_snps_variant_recalibrator_create_model_step(
     if output_bucket:
         b.write_output(
             j.snp_rscript_pdf,
-            os.path.join(output_bucket, 'recalibration-indels-features.pdf')
+            os.path.join(output_bucket, 'recalibration-indels-features.pdf'),
         )
     return j
 
@@ -1178,6 +1215,7 @@ def add_snps_variant_recalibrator_step(
     max_gaussians: int = 4,
 ) -> Job:
     """
+    Recalibrate SNPs in one run (alternative to scatter-gather approach)
     """
     j = b.new_job('SNPsVariantRecalibrator')
 
@@ -1210,19 +1248,19 @@ def add_snps_variant_recalibrator_step(
       -resource:1000G,known=false,training=true,truth=false,prior=10 {one_thousand_genomes_resource_vcf.base} \\
       -resource:dbsnp,known=true,training=false,truth=false,prior=7 {dbsnp_resource_vcf.base} \\
       --rscript-file {j.snp_rscript}
-      
+
       ln {j.snp_rscript}.pdf {j.snp_rscript_pdf}
       ln {j.tranches}.pdf {j.tranches_pdf}"""
     )
-    
+
     if output_bucket:
         b.write_output(
             j.snp_rscript_pdf,
-            os.path.join(output_bucket, 'recalibration-snps-features.pdf')
+            os.path.join(output_bucket, 'recalibration-snps-features.pdf'),
         )
         b.write_output(
-            j.tranches_pdf, 
-            os.path.join(output_bucket, 'recalibration-snps-tranches.pdf')
+            j.tranches_pdf,
+            os.path.join(output_bucket, 'recalibration-snps-tranches.pdf'),
         )
     return j
 
