@@ -264,6 +264,15 @@ d_final2 <- d_final1 %>%
   dplyr::select(sample_name, pop_long, subpop, sex, cov_med, base10x, base20x,
                 freemix, insert_size_med, n_snp, size_cram, fname)
 
+# write CRAMS and indexes to CSV
+d_final2 %>%
+  dplyr::mutate(index_fname = glue::glue("{fname}.crai")) %>%
+  dplyr::select(sample_name, fname, index_fname) %>%
+  tidyr::pivot_longer(fname:index_fname, values_to = "cram_or_index_fname") %>%
+  dplyr::arrange(sample_name) %>%
+  dplyr::select(cram_or_index_fname) %>%
+  readr::write_csv("data/filtered65.csv", col_names = FALSE)
+
 download_button <- d_final2 %>%
   downloadthis::download_this(
     output_name = glue("hgdp_final_{nrow(d_final2)}_samples"),
