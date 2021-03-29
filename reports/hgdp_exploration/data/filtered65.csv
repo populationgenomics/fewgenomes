@@ -1,3 +1,4 @@
+sample_name,ftype,fname
 HGDP00029,cram,gs://ibd-external-datasets/HGDP/broad_reprocessed_crams/HGDP00029.alt_bwamem_GRCh38DH.20181023.Brahui.cram
 HGDP00029,index,gs://ibd-external-datasets/HGDP/broad_reprocessed_crams/HGDP00029.alt_bwamem_GRCh38DH.20181023.Brahui.cram.crai
 HGDP00092,cram,gs://ibd-external-datasets/HGDP/broad_reprocessed_crams/HGDP00092.alt_bwamem_GRCh38DH.20181023.Balochi.cram

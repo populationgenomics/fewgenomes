@@ -270,7 +270,7 @@ d_final2 %>%
   dplyr::select(sample_name, cram = fname, index) %>%
   tidyr::pivot_longer(cram:index, values_to = "fname", names_to = "ftype") %>%
   dplyr::arrange(sample_name) %>%
-  readr::write_csv("data/filtered65.csv", col_names = FALSE)
+  readr::write_csv("data/filtered65.csv", col_names = TRUE)
 
 download_button <- d_final2 %>%
   downloadthis::download_this(
