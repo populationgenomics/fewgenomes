@@ -26,8 +26,11 @@ def copy_to_bucket(bucket: str, batch: hb.batch.Batch, sample_name: str, ftype: 
     # batch.write_output(j.ofile, f'gs://cpg-peter-dev/batch_runs/test/{sample_name}_{ftype}.txt')
     j.command(f'gsutil cp {fname} {bucket}')
 
-backend = hb.ServiceBackend('peterdiakumis-trial', 'cpg-peter-dev')
-b = hb.Batch(backend=backend, name='test-cram-copying')
+service_backend = hb.ServiceBackend(
+    billing_project=os.getenv('HAIL_BILLING_PROJECT'), bucket=os.getenv('HAIL_BUCKET')
+)
+#backend = hb.ServiceBackend('peterdiakumis-trial', 'cpg-peter-dev')
+b = hb.Batch(backend=service_backend, name='test-cram-copying')
 
 with open(input_filelist, newline='') as csvfile:
     reader = csv.DictReader(csvfile)
