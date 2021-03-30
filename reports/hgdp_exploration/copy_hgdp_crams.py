@@ -9,7 +9,7 @@ import hailtop.batch as hb
 
 # OUTPUT gets propagated from the analysis-runner cli to the server
 output_bucket = os.getenv('OUTPUT')
-assert output_bucket and output_bucket.startswith('gs://cpg-fewgenomes-test/')
+assert output_bucket and output_bucket.startswith('gs://cpg-fewgenomes-temporary/')
 
 input_filelist = './data/filtered65.csv'
 
