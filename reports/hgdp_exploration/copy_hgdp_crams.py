@@ -23,8 +23,8 @@ def copy_to_bucket(bucket: str, batch: hb.batch.Batch, sample_name: str, ftype: 
     :param fname: file name to copy (full GCS path)
     """
     j = batch.new_job(name=f'{sample_name}-{ftype}')
-    j.command(f'echo "copy {ftype} file {fname} for {sample_name}!" > {j.ofile}')
-    batch.write_output(j.ofile, f'{bucket}/test/{sample_name}_{ftype}.txt')
+    j.command(f'which hailctl > {j.ofile}')
+    batch.write_output(j.ofile, f'{bucket}/test/{sample_name}_{ftype}_which_hailctl.txt')
     #j.command(f'which gcloud > {j.ofile}')
     #batch.write_output(j.ofile, f'{bucket}/{sample_name}_{ftype}123.txt')
     #print('which gsutil?')
@@ -41,7 +41,7 @@ with open(input_filelist, newline='') as csvfile:
     reader = csv.DictReader(csvfile)
     line_count = 0
     for row in reader:
-        if line_count < 6:
+        if line_count < 4:
             copy_to_bucket(output_bucket, b, row['sample_name'], row['ftype'], row['fname'])
             line_count += 1
 
