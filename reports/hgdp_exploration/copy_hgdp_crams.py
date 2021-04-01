@@ -5,6 +5,7 @@ to the fewgenomes main bucket.
 
 import os
 import csv
+import subprocess
 import hailtop.batch as hb
 
 # OUTPUT gets propagated from the analysis-runner cli to the server
@@ -12,6 +13,19 @@ output_bucket = os.getenv('OUTPUT')
 assert output_bucket and output_bucket.startswith('gs://cpg-fewgenomes-temporary/')
 
 input_filelist = './data/filtered65.csv'
+
+print('which gcloud?')
+subprocess.run(
+    ['which', 'gcloud']
+)
+print('which gsutil?')
+subprocess.run(
+    ['which', 'gsutil']
+)
+print('gcloud config list:')
+subprocess.run(
+    ['gcloud', 'config', 'list']
+)
 
 def copy_to_bucket(bucket: str, batch: hb.batch.Batch, sample_name: str, ftype: str, fname: str) -> None:
     """
