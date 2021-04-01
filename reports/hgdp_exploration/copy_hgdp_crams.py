@@ -1,5 +1,6 @@
 """
 Copies HGDP CRAM files from 'gs://ibd-external-datasets'
+(update: gs://cpg-hgdp-broad-reprocessed-crams)
 to the fewgenomes main bucket.
 """
 
@@ -19,8 +20,8 @@ def copy_to_bucket(bucket: str, batch: hb.batch.Batch, sample_name: str, ftype: 
     """
     :param bucket: GCS bucket to copy to
     :param batch: hailtop Batch object
-    :param sample_name: name of sample
-    :param ftype: file type (cram or index)
+    :param sample_name: name of sample, used for job logging
+    :param ftype: file type (cram or index), used for job logging
     :param fname: file name to copy (full GCS path)
     """
     j_copy = batch.new_job(name=f'copy-{sample_name}-{ftype}')
@@ -31,15 +32,12 @@ def copy_to_bucket(bucket: str, batch: hb.batch.Batch, sample_name: str, ftype: 
 service_backend = hb.ServiceBackend(
     billing_project=os.getenv('HAIL_BILLING_PROJECT'), bucket=os.getenv('HAIL_BUCKET')
 )
-b = hb.Batch(backend=service_backend, name='test-cram-copying')
+b = hb.Batch(backend=service_backend, name='copy-crams')
 
 # Copy CRAMs and indexes listed in CSV to bucket
 with open(input_filelist, newline='') as csvfile:
     reader = csv.DictReader(csvfile)
-    line_count = 0
     for row in reader:
-        if line_count < 4:
-            copy_to_bucket(output_bucket, b, row['sample_name'], row['ftype'], row['fname'])
-            line_count += 1
+        copy_to_bucket(output_bucket, b, row['sample_name'], row['ftype'], row['fname'])
 
 b.run()
