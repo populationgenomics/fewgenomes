@@ -23,8 +23,8 @@ def copy_to_bucket(bucket: str, batch: hb.batch.Batch, sample_name: str, ftype: 
     :param fname: file name to copy (full GCS path)
     """
     j = batch.new_job(name=f'{sample_name}-{ftype}')
-    j.command(f'which hailctl > {j.ofile}')
-    batch.write_output(j.ofile, f'{bucket}/test/{sample_name}_{ftype}_which_hailctl.txt')
+    j.command(f'hailctl --help > {j.ofile}')
+    batch.write_output(j.ofile, f'{bucket}/test/{sample_name}_{ftype}_hailctl_help.txt')
     #j.command(f'which gcloud > {j.ofile}')
     #batch.write_output(j.ofile, f'{bucket}/{sample_name}_{ftype}123.txt')
     #print('which gsutil?')
