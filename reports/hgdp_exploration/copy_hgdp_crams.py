@@ -25,7 +25,8 @@ def copy_to_bucket(bucket: str, batch: hb.batch.Batch, sample_name: str, ftype: 
     """
     j_copy = batch.new_job(name=f'copy-{sample_name}-{ftype}')
     (j_copy.image(analysis_runner_image)
-           .command(f'gcloud -q auth activate-service-account --key-file=/gsa-key/key.json && gsutil cp {fname} {bucket}'))
+           .command(f'gcloud -q auth activate-service-account --key-file=/gsa-key/key.json')
+           .command(f'gsutil cp {fname} {bucket}'))
 
 service_backend = hb.ServiceBackend(
     billing_project=os.getenv('HAIL_BILLING_PROJECT'), bucket=os.getenv('HAIL_BUCKET')
