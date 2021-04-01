@@ -26,7 +26,7 @@ def copy_to_bucket(bucket: str, batch: hb.batch.Batch, sample_name: str, ftype: 
     # j.command(f'echo "copy {ftype} file {fname} for {sample_name}!" > {j.ofile}')
     # batch.write_output(j.ofile, f'gs://cpg-peter-dev/batch_runs/test/{sample_name}_{ftype}.txt')
     j.command(f'which gcloud > {j.ofile}')
-    batch.write_output(j.ofile, f'gs://cpg-peter-dev/batch_runs/test/{sample_name}_{ftype}123.txt')
+    batch.write_output(j.ofile, f'{bucket}/{sample_name}_{ftype}123.txt')
     #print('which gsutil?')
     #j.command(f'which gsutil')
     #j.command(f'gsutil cp {fname} {bucket}')
