@@ -27,8 +27,8 @@ def copy_to_bucket(bucket: str, batch: hb.batch.Batch, sample_name: str, ftype: 
     # batch.write_output(j.ofile, f'gs://cpg-peter-dev/batch_runs/test/{sample_name}_{ftype}.txt')
     print('which gcloud?')
     j.command(f'which gcloud')
-    print('which gsutil?')
-    j.command(f'which gsutil')
+    #print('which gsutil?')
+    #j.command(f'which gsutil')
     #j.command(f'gsutil cp {fname} {bucket}')
 
 service_backend = hb.ServiceBackend(
