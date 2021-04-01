@@ -1,43 +1,32 @@
 """
-Copies HGDP CRAM files from 'gs://ibd-external-datasets'
-(update: gs://cpg-hgdp-broad-reprocessed-crams)
-to the fewgenomes main bucket.
+Copies HGDP CRAM and index files listed in a CSV file
+to the gs://cpg-fewgenomes-main bucket.
 """
 
 import os
 import csv
-import subprocess
 import hailtop.batch as hb
 
 # OUTPUT gets propagated from the analysis-runner cli to the server
 output_bucket = os.getenv('OUTPUT')
-assert output_bucket and output_bucket.startswith('gs://cpg-fewgenomes-temporary/')
+assert output_bucket and output_bucket.startswith('gs://cpg-fewgenomes-main/')
 
-input_filelist = './data/filtered65.csv'
-analysis_runner_image = 'australia-southeast1-docker.pkg.dev/analysis-runner/images/driver:45c3f8125e300cd70bb790e32d96816f003a7af2-hail-0.2.64.devcb1c44c7b529'
-
-def copy_to_bucket(bucket: str, batch: hb.batch.Batch, sample_name: str, ftype: str, fname: str) -> None:
-    """
-    :param bucket: GCS bucket to copy to
-    :param batch: hailtop Batch object
-    :param sample_name: name of sample, used for job logging
-    :param ftype: file type (cram or index), used for job logging
-    :param fname: file name to copy (full GCS path)
-    """
-    j_copy = batch.new_job(name=f'copy-{sample_name}-{ftype}')
-    (j_copy.image(analysis_runner_image)
-           .command(f'gcloud -q auth activate-service-account --key-file=/gsa-key/key.json')
-           .command(f'gsutil cp {fname} {bucket}'))
+# input CSV contains 3 columns with sample name, file type, full GCS file path
+INPUT_FILELIST = './data/filtered65.csv'
+ANALYSIS_RUNNER_IMAGE = 'australia-southeast1-docker.pkg.dev/analysis-runner/images/driver:45c3f8125e300cd70bb790e32d96816f003a7af2-hail-0.2.64.devcb1c44c7b529'
 
 service_backend = hb.ServiceBackend(
     billing_project=os.getenv('HAIL_BILLING_PROJECT'), bucket=os.getenv('HAIL_BUCKET')
 )
 b = hb.Batch(backend=service_backend, name='copy-crams')
 
-# Copy CRAMs and indexes listed in CSV to bucket
-with open(input_filelist, newline='') as csvfile:
+# Create Hail Batch jobs to copy CRAMs and indexes listed in CSV file to output bucket
+with open(INPUT_FILELIST, newline='') as csvfile:
     reader = csv.DictReader(csvfile)
     for row in reader:
-        copy_to_bucket(output_bucket, b, row['sample_name'], row['ftype'], row['fname'])
+        j_copy = b.new_job(name=f'copy-{row["sample_name"]}-{row["ftype"]}')
+        (j_copy.image(ANALYSIS_RUNNER_IMAGE)
+               .command(f'gcloud -q auth activate-service-account --key-file=/gsa-key/key.json')
+               .command(f'gsutil cp {row["fname"]} {output_bucket}'))
 
 b.run()
