@@ -23,16 +23,17 @@ def copy_to_bucket(bucket: str, batch: hb.batch.Batch, sample_name: str, ftype: 
     :param ftype: file type (cram or index)
     :param fname: file name to copy (full GCS path)
     """
-    j = batch.new_job(name=f'copy-{sample_name}-{ftype}')
-    j.command(f'gsutil cp {fname} {bucket}')
+    j_auth = batch.new_job(name='authorise service account access')
+    j_copy = batch.new_job(name=f'copy-{sample_name}-{ftype}')
+    (j_auth.image(analysis_runner_image)
+           .command(f'gcloud -q auth activate-service-account --key-file=/gsa-key/key.json'))
+    (j_copy.image(analysis_runner_image)
+           .command(f'gsutil cp {fname} {bucket}'))
 
 service_backend = hb.ServiceBackend(
     billing_project=os.getenv('HAIL_BILLING_PROJECT'), bucket=os.getenv('HAIL_BUCKET')
 )
 b = hb.Batch(backend=service_backend, name='test-cram-copying')
-j_auth = b.new_job(name='authorise service account access')
-(j_auth.image(analysis_runner_image)
-       .command(f'gcloud -q auth activate-service-account --key-file=/gsa-key/key.json'))
 
 # Copy CRAMs and indexes listed in CSV to bucket
 with open(input_filelist, newline='') as csvfile:
