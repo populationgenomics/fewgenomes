@@ -22,8 +22,10 @@ def copy_to_bucket(bucket: str, batch: hb.batch.Batch, sample_name: str, ftype: 
     :param ftype: file type (cram or index)
     :param fname: file name to copy (full GCS path)
     """
-    j = batch.new_job(name=f'{sample_name}-{ftype}')
-    j.command(f'gcloud config list > {j.ofile}')
+    j = batch.new_job(name=f'copy-{sample_name}-{ftype}')
+
+    (j.image('australia-southeast1-docker.pkg.dev/analysis-runner/images/driver:45c3f8125e300cd70bb790e32d96816f003a7af2-hail-0.2.64.devcb1c44c7b529')
+      .command(f'gcloud config list > {j.ofile}'))
     batch.write_output(j.ofile, f'{bucket}/test/{sample_name}_{ftype}_gcloud_config.txt')
     #j.command(f'which gcloud > {j.ofile}')
     #batch.write_output(j.ofile, f'{bucket}/{sample_name}_{ftype}123.txt')
