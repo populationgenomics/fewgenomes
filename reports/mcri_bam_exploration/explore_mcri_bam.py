@@ -14,8 +14,9 @@ service_backend = hb.ServiceBackend(
 )
 b = hb.Batch(backend=service_backend, name='explore-mcri-bam')
 j = b.new_job(name=f'samtools idxstats')
+bam_input = b.read_input(BAM)
 (j.image(SAMTOOLS)
-  .command(f'samtools idxstats {BAM} > {j.ofile}'))
+  .command(f'samtools idxstats {bam_input} > {j.ofile}'))
 b.write_output(j.ofile, f'{output_bucket}/explore-mcri-bam/samtools_idxstats.txt')
 
 b.run()
