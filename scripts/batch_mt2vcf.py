@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 """
 Hail Batch workflow to perform joint calling, sample QC, and variant QC with VQSR and 
 random forest methods on a WGS germline callset.
@@ -55,7 +57,7 @@ def main():  # pylint: disable=too-many-arguments,too-many-locals,too-many-state
 
     mt_path = 'gs://gcp-public-data--gnomad/release/3.1/mt/genomes/gnomad.genomes.v3.1.hgdp_1kg_subset_dense.mt'
     combined_vcf_path = (
-        'gs://cpg-tob-wgs-test-tmp/joint-calling/v2/variant_qc/vqsr/input-test.vcf.gz'
+        'gs://cpg-fewgenomes-test-tmp/joint-calling/v2/variant_qc/vqsr/input-test.vcf.gz'
     )
     dataproc.hail_dataproc_job(
         b,
