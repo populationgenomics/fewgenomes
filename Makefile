@@ -26,6 +26,7 @@ joint_calling_test_to_tmp:
 	--callset $(CALLSET) \
 	--version ${TEST_VERSION} \
 	--keep-scratch \
+	--skip-input-meta \
 	$(REUSE_ARG)
 
 .PHONY: joint_calling_test_to_test
@@ -43,6 +44,7 @@ joint_calling_test_to_test:
 	--callset $(CALLSET) \
 	--version $(VERSION) \
 	--keep-scratch \
+	--skip-input-meta \
 	$(REUSE_ARG)
 
 .PHONY: joint_calling_main_to_main
@@ -59,4 +61,5 @@ joint_calling_main_to_main:
 	--to main \
 	--callset $(CALLSET) \
 	--version $(VERSION) \
+	--skip-input-meta \
 	$(REUSE_ARG)
