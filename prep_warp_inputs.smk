@@ -27,21 +27,27 @@ GATKSV_SAMPLES_JSON_URL = (
     'https://raw.githubusercontent.com/broadinstitute/gatk-sv/master/input_values/'
     'ref_panel_1kg.json'
 )
-GVCF_1KG_BUCKET_PATTERN = (
+GVCF_1KG_BUCKET_PATTERNS = [
     'gs://fc-56ac46ea-efc4-4683-b6d5-6d95bed41c5e/CCDG_14151/'
     'Project_CCDG_14151_B01_GRM_WGS.gVCF.2020-02-12/'
     'Project_CCDG_14151_B01_GRM_WGS.gVCF.2020-02-12/'
-    'Sample_*/analysis/*.haplotypeCalls.er.raw.vcf.gz'
-)
+    'Sample_*/analysis/*.haplotypeCalls.er.raw.vcf.gz',
+    'gs://fc-56ac46ea-efc4-4683-b6d5-6d95bed41c5e/CCDG_13607/'
+    'Project_CCDG_13607_B01_GRM_WGS.gVCF.2019-02-06/'
+    'Sample_*/analysis/*.haplotypeCalls.er.raw.g.vcf.gz'
+]
+
 
 # Including a platinum genome NA12878, and one full trio for testing
 # the relatedness checks
-DEFAULT_INCLUDE = config.get('default_samples', 
-    'NA12878,NA19238,NA19239,NA19240').split(',')
+# DEFAULT_INCLUDE = config.get('default_samples', 
+#     'NA12878,NA19238,NA19239,NA19240').split(',')
+DEFAULT_INCLUDE = []
 DATASETS_DIR = 'datasets/'
 
 SAMPLE_N = config.get('n', len(DEFAULT_INCLUDE))  # the number of samples to select
-if SAMPLE_N:
+FAMILIES_N = config.get('families', 0)  # the number of families to select
+if SAMPLE_N and DEFAULT_INCLUDE:
     DEFAULT_INCLUDE = DEFAULT_INCLUDE[:SAMPLE_N]
 
 INPUT_TYPES_TO_FOLDER_NAME = {
@@ -66,13 +72,15 @@ assert 'dataset_name' in config, \
 DATASET = config['dataset_name']
 
 # Base bucket to copy files to
-COPY_LOCALY_BUCKET = config.get('copy_localy_bucket')
+COPY_LOCALY_BUCKET = 'gs://cpg-fewgenomes-main'
+
+OUT_SAMPLE_MAP_TSV = os.path.join(DATASETS_DIR, DATASET, f'{DATASET}-{INPUT_TYPE}-local.tsv')
 
 
 if INPUT_TYPE == 'gvcf':
     rule all:
         input:
-            os.path.join(DATASETS_DIR, DATASET, f'{DATASET}-gvcf.json')
+            OUT_SAMPLE_MAP_TSV
 else:
     rule all:
         input:
@@ -80,7 +88,7 @@ else:
                 dynamic(os.path.join(DATASETS_DIR, DATASET, INPUT_TYPE, '{sample}-warp.json')),
             multisample_warp_input = \
                 os.path.join(DATASETS_DIR, DATASET, f'{DATASET}-warp-{INPUT_TYPE}.json')
-    
+
 def get_warp_input_json_url(wfl_name):
     return (
         f'https://raw.githubusercontent.com/populationgenomics/cromwell-configs/'
@@ -115,9 +123,11 @@ rule save_gvcf_ls:
     output:
         'resources/gs-gvcfs.txt'
     params:
-        url_pattern = GVCF_1KG_BUCKET_PATTERN
-    shell:
-        'gsutil -u fewgenomes ls "{params.url_pattern}" > {output}'
+        url_patterns = GVCF_1KG_BUCKET_PATTERNS
+    run:
+        shell('touch {output}')
+        for ptn in params.url_patterns:
+            shell('gsutil -u fewgenomes ls "{ptn}" >> {output}')
 
 rule gs_ls_to_table:
     input:
@@ -134,9 +144,9 @@ rule gs_ls_to_table:
                 line = line.strip()
                 if line.startswith(params.gs_data_base_url) and line.endswith('/'):
                     # .../data/HG00096/exome_alignment/
-                    tokens = line.split('/')
-                    INPUT_TYPE = tokens[-2]
-                    sample = tokens[-3]
+                    components = line.split('/')
+                    INPUT_TYPE = components[-2]
+                    sample = components[-3]
                     input_types_by_sample[sample].append(INPUT_TYPE)
         with open(input.gvcf_ls_output) as ls_inp:
             for line in ls_inp:
@@ -190,7 +200,7 @@ rule overlap_with_available_data:
 
         df.to_csv(output.ped, sep='\t', index=False)
 
-rule select_few_samples:
+rule select_samples_or_families:
     input:
         ped = rules.overlap_with_available_data.output.ped
     output:
@@ -203,24 +213,72 @@ rule select_few_samples:
             df = df[~df['gatksv_cram'].isnull() | df['high_coverage_alignment']]
         elif INPUT_TYPE in ['wgs_bam', 'exome_bam', 'gvcf']:
             df = df[df[INPUT_TYPES_TO_FOLDER_NAME[INPUT_TYPE]]]
-        
+
+        if SAMPLE_N:
+            print(f'Selecting {SAMPLE_N} samples')
+        if FAMILIES_N:
+            print(f'Selecting {FAMILIES_N} families')
+            
+        from peddy import Ped
+        ped = Ped(input.ped)
+        all_samples = set(df['Individual.ID'])
+        related_pairs_per_family = dict()
+        for fam_id, fam in ped.families.items():
+            relation_by_pair = dict()  # pair of str -> relation str
+            for s1 in fam.samples:
+                for s2 in fam.samples:
+                    if (s1.sample_id != s2.sample_id and 
+                        s1.sample_id in all_samples and 
+                        s2.sample_id in all_samples
+                    ):
+                        pair = tuple(sorted([s1.sample_id, s2.sample_id]))
+                        if pair not in relation_by_pair:
+                            relation = ped.relation(s1, s2)
+                            if relation not in [
+                                'unrelated', 
+                                'unknown', 
+                                'related at unknown level',
+                                'mom-dad',
+                            ]:
+                                relation_by_pair[pair] = relation
+            if len(relation_by_pair) > 0:
+                related_pairs_per_family[fam_id] = relation_by_pair
+
+        # Selecting families with >2 related pairs
+        big_fam_ids = [fam_id for fam_id, relation_by_pair in related_pairs_per_family.items()
+                       if len(relation_by_pair) >= 2]
+        # Selecting smallest families first, as it would prioritize nice trios
+        big_fam_ids = sorted(big_fam_ids,
+            key=lambda id: len([s for s in ped.families[id].samples if s.sample_id in all_samples]))
+        for id in big_fam_ids:
+            relation_by_pair = related_pairs_per_family[id]
+            print(f'Family {id}: pairs of samples {relation_by_pair}')
+        print(f'Found {len(big_fam_ids)} candidate families with >=2 related pairs')
+        big_fam_ids = big_fam_ids[:FAMILIES_N]
+
         default_sample_cond = df['Individual.ID'].isin(DEFAULT_INCLUDE)
-        print(f'Selecting {SAMPLE_N} samples...')
-        df = pd.concat([
-            df[default_sample_cond],
-            df[~default_sample_cond].sample(SAMPLE_N - len(DEFAULT_INCLUDE), 
-                random_state=1)
-        ])
+        families_cond = df['Family.ID'].isin(big_fam_ids)
+        
+        if FAMILIES_N:
+            df = pd.concat([df[families_cond]])
+
+        if SAMPLE_N:
+            df = pd.concat([
+                df[default_sample_cond],
+                df[~default_sample_cond].sample(SAMPLE_N - len(DEFAULT_INCLUDE), 
+                    random_state=1)
+            ])
+
         df.to_csv(output.ped, sep='\t', index=False)
 
 rule make_sample_map:
     input:
-        ped = rules.select_few_samples.output.ped
+        ped = rules.select_samples_or_families.output.ped
     output:
         sample_map = os.path.join(DATASETS_DIR, DATASET, f'{DATASET}-{INPUT_TYPE}.tsv'),
     params:
         gs_data_bucket = GS_1GK_DATA_BUCKET,
-        gvcf_bucket_ptrn = GVCF_1KG_BUCKET_PATTERN,
+        gvcf_bucket_ptrns = GVCF_1KG_BUCKET_PATTERNS,
     run:
         print(f'Finding inputs and generating WARP input files...')
         df = pd.read_csv(input.ped, sep='\t')
@@ -254,11 +312,19 @@ rule make_sample_map:
                     ','.join(['|'.join(fp) for fp in fastq_pairs])
                 
             elif INPUT_TYPE in ['gvcf']:
-                print(row)
                 if row[INPUT_TYPES_TO_FOLDER_NAME[INPUT_TYPE]]:
                     print(f'Finding GVCFs for {sample}')
-                    path = params.gvcf_bucket_ptrn.replace('*', sample)
-                    input_files_by_sample[sample] = path
+                    for ptn in params.gvcf_bucket_ptrns:
+                        path = ptn.replace('*', sample)
+                        cmd = f'gsutil -u fewgenomes ls "{path}"'
+                        print(cmd)
+                        try:
+                            subprocess.check_output(cmd, shell=True).decode().split('\n')
+                        except subprocess.CalledProcessError:
+                            pass
+                        else:
+                            input_files_by_sample[sample] = path
+                            break
 
         with open(output.sample_map, 'w') as out:
             for sample, input_files in input_files_by_sample.items():
@@ -271,7 +337,7 @@ if COPY_LOCALY_BUCKET:
         input:
             sample_map = rules.make_sample_map.output.sample_map,
         output:
-            sample_map = os.path.join(DATASETS_DIR, DATASET, f'{DATASET}-{INPUT_TYPE}-local.tsv'),
+            sample_map = OUT_SAMPLE_MAP_TSV,
         params:
             bucket = COPY_LOCALY_BUCKET,
             dataset = DATASET,
@@ -281,37 +347,12 @@ if COPY_LOCALY_BUCKET:
                 for line in f:
                     sample, gvcf = line.strip().split()
                     out_gvcf_name = f'{sample}.g.vcf.gz'
-                    target_path = f'{params.bucket}/original-gvcf/{sample}/gvcf/{out_gvcf_name}'
+                    target_path = f'{params.bucket}/gvcf/batch0/{out_gvcf_name}'
                     shell(f'gsutil ls {target_path} || gsutil -u fewgenomes cp {gvcf} {target_path}')
                     shell(f'gsutil ls {target_path}.tbi || gsutil -u fewgenomes cp {gvcf}.tbi {target_path}.tbi')
                     out.write('\t'.join([sample, target_path]) + '\n')
-       
+
     sample_map = rules.copy_gvcf.output.sample_map
-        
-rule make_prepare_gvcf_input:
-    input:
-        sample_map = sample_map,
-    output:
-        os.path.join(DATASETS_DIR, DATASET, f'{DATASET}-gvcf.json')
-    params:
-        wfl_name = INPUT_TYPES_TO_WORKFLOW_NAME.get(INPUT_TYPE),
-    run:
-        multi_wfl_name = params.wfl_name
-        wfl_tmpl_path = 'wdl/prepare-gvcfs-inputs.json'
-        with open(wfl_tmpl_path) as fh:
-            data = json.load(fh)
-        
-        samples = []
-        gvcfs = []
-        with open(input.sample_map) as f:
-            for line in f:
-                sample, gvcf = line.strip().split() 
-                samples.append(sample)
-                gvcfs.append(gvcf)
-        data[f'{multi_wfl_name}.samples'] = samples
-        data[f'{multi_wfl_name}.gvcfs'] = gvcfs
-        with open(output[0], 'w') as out:
-            json.dump(data, out, indent=4)
 
 rule make_multisample_warp_input:
     input:
