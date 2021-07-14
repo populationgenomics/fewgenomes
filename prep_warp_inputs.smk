@@ -38,17 +38,18 @@ GVCF_1KG_BUCKET_PATTERNS = [
 ]
 
 
-# Including a platinum genome NA12878, and one full trio for testing
-# the relatedness checks
-# DEFAULT_INCLUDE = config.get('default_samples', 
-#     'NA12878,NA19238,NA19239,NA19240').split(',')
-DEFAULT_INCLUDE = []
 DATASETS_DIR = 'datasets/'
 
-SAMPLE_N = config.get('n', len(DEFAULT_INCLUDE))  # the number of samples to select
+# E.g. including a platinum genome NA12878 trio for testing the relatedness checks
+DEFAULT_INCLUDE = config.get('default_include', '').split(',')
+SAMPLE_N = config.get('n')  # the number of samples to select
 FAMILIES_N = config.get('families', 0)  # the number of families to select
-if SAMPLE_N and DEFAULT_INCLUDE:
-    DEFAULT_INCLUDE = DEFAULT_INCLUDE[:SAMPLE_N]
+assert not (SAMPLE_N and FAMILIES_N), 'Only one of -n and --families can be defined'
+if DEFAULT_INCLUDE:
+    if SAMPLE_N:
+        DEFAULT_INCLUDE = DEFAULT_INCLUDE[:SAMPLE_N]
+    if FAMILIES_N:
+        DEFAULT_INCLUDE = DEFAULT_INCLUDE[:FAMILIES_N]
 
 INPUT_TYPES_TO_FOLDER_NAME = {
     'wgs_fastq': 'sequence_read',
