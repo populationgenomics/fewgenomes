@@ -4,3 +4,4 @@ resources/G1K_sample_info.xlsx
 work
 .snakemake
 .DS_Store
+.Rproj.user
