@@ -25,3 +25,5 @@ output_env <- Sys.getenv("OUTPUT")
 gcs_outdir <- glue("gs://cpg-{dataset_env}-test-tmp/{output_env}")
 system(glue("gsutil cp {mtcars_tsv} {mtcars_plot} {gcs_outdir}"))
 cat(glue("[{date()}] Finished successfully!"))
+
+#test
