@@ -10,10 +10,11 @@ from io import StringIO
 from typing import List, Tuple
 
 """
-this is a requests-centric process which takes a number of Family IDs, and returns a JSON string
+this is a requests-centric process which takes 1+ Family IDs, and returns a JSON string
 the output string contains a dictionary of each family ID to a set of identifiers
-by default these identifiers are CPG internal sample IDs
-by argument these can be external IDs instead 
+by default these identifiers are CPG internal sample IDs; by argument these can be external IDs instead
+
+The output of this script is intended for the MatrixTable sub-setting script within the same directory
 
 This is a lil script for finding samples belonging in each family. This would be faster and more robust as a DB query
 if this turns out to be useful to anyone, the same function should be recreated in the sample-metadata api repo
