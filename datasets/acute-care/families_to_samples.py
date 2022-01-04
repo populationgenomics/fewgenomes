@@ -7,7 +7,7 @@ import subprocess
 
 from csv import DictReader
 from io import StringIO
-from typing import List, Tuple
+from typing import Tuple
 
 """
 this is a requests-centric process which takes 1+ Family IDs, and returns a JSON string
