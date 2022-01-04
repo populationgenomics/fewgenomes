@@ -36,6 +36,9 @@ def main(json_str: str, dataset: str):
     # collect all unique sample IDs for a single filter on the MT
     all_samples = set(chain.from_iterable(families_dict.values()))
 
+    # initiate Hail expecting GRCh38
+    hl.init(default_reference='GRCh38')
+
     # open full MT (note, not all read in, this is done lazily with spark)
     mt = hl.read_matrix_table(gcp_mt_full)
 
