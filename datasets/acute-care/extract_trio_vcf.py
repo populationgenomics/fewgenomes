@@ -16,8 +16,14 @@ arguments passing mediated with click, so minimal hard-coding required
 
 
 @click.command()
-@click.option('--json-str', help='this is the formatted json string of family_sample_lookups', type=click.STRING)
-@click.option('--dataset', help="name of the dataset to use (gcp bucket names)", type=click.STRING)
+@click.option(
+    "--json-str",
+    help="this is the formatted json string of family_sample_lookups",
+    type=click.STRING,
+)
+@click.option(
+    "--dataset", help="name of the dataset to use (gcp bucket names)", type=click.STRING
+)
 def main(json_str: str, dataset: str):
 
     # parse the families dict from the input string, e.g. '{"fam1":["sam1","sam2"]}'

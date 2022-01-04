@@ -7,8 +7,7 @@ import subprocess
 
 from csv import DictReader
 from io import StringIO
-from requests.structures import CaseInsensitiveDict
-
+from typing import List, Tuple
 
 """
 this is a requests-centric process which takes a number of Family IDs, and returns a JSON string
@@ -29,11 +28,11 @@ def get_auth() -> str:
     This is of course a greasy hack, and will never translate to any other environments
     It does facilitate local playing with the metadata api, and that will broadly translate into other contexts
     """
-    return subprocess.Popen(
-        ['gcloud', 'auth', 'print-identity-token'],
-        stdout=subprocess.PIPE,
-        universal_newlines=True
-    ).communicate()[0].rstrip()
+    return (
+        subprocess.check_output(["gcloud", "auth", "print-identity-token"])
+        .decode()
+        .strip()
+    )
 
 
 def get_response(url, headers, query_params=None) -> requests.Response:
@@ -46,18 +45,24 @@ def get_response(url, headers, query_params=None) -> requests.Response:
     """
 
     resp = requests.get(headers=headers, url=url, params=query_params)
-    if resp.status_code != 200:
-        raise Exception(f"non-200 status code for {url}, {headers}, {query_params}")
+
+    # raise exception if `not resp.ok`
+    resp.raise_for_status()
 
     return resp
 
 
-def get_family_to_sample_map(df: pandas.DataFrame, families: str, external: bool, pid_to_id: dict, int_to_ext: dict
-                             ) -> dict:
+def get_family_to_sample_map(
+    df: pandas.DataFrame,
+    families: Tuple[str],
+    external: bool,
+    pid_to_id: dict,
+    int_to_ext: dict,
+) -> dict:
     """
     take an arb. number of families from the command line, and for each, find all sample IDs. Return as a JSON dict
     :param df: the pedigrees dataframe
-    :param families: str, a comma-delimited string containing family IDs
+    :param families: Tuple[str], containing family ID strings
     :param external: bool, True if we want to return external sample IDs, false for CPG IDs
     :param pid_to_id: dict, lookup of int. participant ID to int. sample ID
     :param int_to_ext: dict, lookup of int. sample ID to external
@@ -67,7 +72,7 @@ def get_family_to_sample_map(df: pandas.DataFrame, families: str, external: bool
 
     dict_result = {}
 
-    for family_id in families.split(","):
+    for family_id in families:
 
         dict_result[family_id] = []
 
@@ -78,17 +83,14 @@ def get_family_to_sample_map(df: pandas.DataFrame, families: str, external: bool
         # translate those IDs to something usable
         for member_id in original_ids:
 
-            # participant to sample
-            int_sample_id = pid_to_id.get(member_id)
+            # participant to internal sample
+            sample_id = pid_to_id.get(member_id)
 
-            # internal sample to external sample
-            ext_sample_id = int_to_ext.get(int_sample_id)
-
-            # store the appropriate value, depending on argument flags
+            # do we want the external IDs instead?
             if external:
-                dict_result[family_id].append(ext_sample_id)
-            else:
-                dict_result[family_id].append(int_sample_id)
+                sample_id = int_to_ext.get(sample_id)
+
+            dict_result[family_id].append(sample_id)
 
     return dict_result
 
@@ -98,13 +100,15 @@ def get_family_to_sample_map(df: pandas.DataFrame, families: str, external: bool
     "--project",
     "project",
     type=click.STRING,
-    help="the name of the project to use in API queries"
+    help="the name of the project to use in API queries",
 )
 @click.option(
+    "-f",
     "--families",
     "families",
     type=click.STRING,
-    help="a comma-delimited string, containing all the family IDs to search for"
+    multiple=True,
+    help="one or more family IDs to search for",
 )
 @click.option(
     "--external",
@@ -112,15 +116,15 @@ def get_family_to_sample_map(df: pandas.DataFrame, families: str, external: bool
     type=click.BOOL,
     default=False,
     is_flag=True,
-    help="if this is set, return external IDs instead"
+    help="if this is set, return external IDs instead",
 )
-def main(project: str, families: str, external: bool):
-    # only get this once, for now
+def main(project: str, families: Tuple[str], external: bool):
+
     auth_token = get_auth()
 
     # currently the 2 types of endpoint require different headers, with the same auth token
-    table_header = CaseInsensitiveDict(data={"Accept": ACCEPT_ALL, "Authorization": f"Bearer {auth_token}"})
-    mapping_header = CaseInsensitiveDict(data={"Accept": ACCEPT_JSON, "Authorization": f"Bearer {auth_token}"})
+    table_header = {"Accept": ACCEPT_ALL, "Authorization": f"Bearer {auth_token}"}
+    mapping_header = {"Accept": ACCEPT_JSON, "Authorization": f"Bearer {auth_token}"}
 
     # core query params from documentation
     # get the pedigrees across the entire project
@@ -131,12 +135,14 @@ def main(project: str, families: str, external: bool):
             "replace_with_participant_external_ids": True,
             "replace_with_family_external_ids": True,  # False
             "empty_participant_value": "",
-            "include_header": True
-        }
+            "include_header": True,
+        },
     )
 
     # parse this into a series of dictionaries, then into a dataframe
-    dict_read = DictReader(StringIO(response.content.decode().strip("#")), delimiter="\t")
+    dict_read = DictReader(
+        StringIO(response.content.decode().strip("#")), delimiter="\t"
+    )
     pedigree_df = pd.DataFrame([line for line in dict_read])
 
     # -#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#- #
@@ -160,14 +166,21 @@ def main(project: str, families: str, external: bool):
     # we can obtain a lookup on the internal sample ID using the external PID
     # participant/acute-care/external-pid-to-internal-sample-id # JSON
     # this will get us a CPG ID (INTernal, not INTeger)
-    response = get_response(url=f"{URL_BASE}/{PARTICIPANT_ENDPOINT}/{project}/external-pid-to-internal-sample-id",
-                            headers=mapping_header)
+    response = get_response(
+        url=f"{URL_BASE}/{PARTICIPANT_ENDPOINT}/{project}/external-pid-to-internal-sample-id",
+        headers=mapping_header,
+    )
     paired_samples_list = response.json()
-    pid_to_sample_id = dict(zip([_[0] for _ in paired_samples_list], [_[1] for _ in paired_samples_list]))
+    pid_to_sample_id = dict(
+        zip([_[0] for _ in paired_samples_list], [_[1] for _ in paired_samples_list])
+    )
 
     # we can then map the internal sample IDs to external sample IDs
     # sample/acute-care/id-map/internal/all # JSON
-    response = get_response(url=f"{URL_BASE}/{SAMPLE_ENDPOINT}/{project}/id-map/internal/all", headers=mapping_header)
+    response = get_response(
+        url=f"{URL_BASE}/{SAMPLE_ENDPOINT}/{project}/id-map/internal/all",
+        headers=mapping_header,
+    )
     internal_to_ext_map = response.json()
 
     family_to_samples_dict = get_family_to_sample_map(
@@ -175,11 +188,11 @@ def main(project: str, families: str, external: bool):
         families=families,
         external=external,
         pid_to_id=pid_to_sample_id,
-        int_to_ext=internal_to_ext_map
+        int_to_ext=internal_to_ext_map,
     )
 
     # now print as a string value, with no spaces
-    print(json.dumps(family_to_samples_dict, separators=(',', ':')))
+    print(json.dumps(family_to_samples_dict, separators=(",", ":")))
 
 
 URL_BASE = "https://sample-metadata-api-mnrpw3mdza-ts.a.run.app/api/v1"
