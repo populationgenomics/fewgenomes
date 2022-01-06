@@ -12,7 +12,34 @@ simple procedural script that is provided with command line inputs
 - the project/dataset name, used to identify the buckets assc. with the specific project
 
 arguments passing mediated with click, so minimal hard-coding required 
+
+Additional - check that the requested samples are present, and throw exceptions if not
 """
+
+
+def check_for_samples(sample_names: set, family_structures: dict, mat: hl.MatrixTable) -> bool:
+    """
+    checks if all samples are present
+    - if not, checks for any samples being present
+    - if some but not all flag families, if all are missing flag the values as possibly in wrong format
+    """
+    samples_in_mt = set(mat.s.collect())
+
+    # all good?
+    if all([sam in samples_in_mt for sam in sample_names]):
+        return True
+
+    # partially good?
+    elif any([sam in samples_in_mt for sam in sample_names]):
+        for family, samples in family_structures.items():
+            if not all([sam in samples_in_mt for sam in samples]):
+                print(f"Family {family} is not fully represented in the DataFrame")
+
+    # problem, none present
+    else:
+        print(f"No requested samples were present in the MT, please check format matches '{samples_in_mt.pop()}'")
+
+    return False
 
 
 @click.command()
@@ -41,6 +68,11 @@ def main(json_str: str, dataset: str):
 
     # open full MT (note, not all read in, this is done lazily with spark)
     mt = hl.read_matrix_table(gcp_mt_full)
+
+    # check that all the samples are present
+    valid_names = check_for_samples(all_samples, families_dict, mt)
+    if not valid_names:
+        exit()
 
     # filter the full dataset to only the samples we're interested in
     mt = mt.filter_cols(hl.literal(all_samples).contains(mt["s"]))
