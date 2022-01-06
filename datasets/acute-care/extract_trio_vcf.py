@@ -1,7 +1,9 @@
 import click
 import hail as hl
 import json
+import logging
 import os
+import sys
 
 from itertools import chain
 
@@ -25,21 +27,38 @@ def check_for_samples(sample_names: set, family_structures: dict, mat: hl.Matrix
     """
     samples_in_mt = set(mat.s.collect())
 
+    print(sample_names)
+    print(samples_in_mt)
+
     # all good?
     if all([sam in samples_in_mt for sam in sample_names]):
+        logging.info(f"All {len(samples_in_mt)} samples represented across {len(family_structures)} families")
         return True
 
-    # partially good?
+    # partially good? some requested samples are present, but not all
     elif any([sam in samples_in_mt for sam in sample_names]):
         for family, samples in family_structures.items():
-            if not all([sam in samples_in_mt for sam in samples]):
-                print(f"Family {family} is not fully represented in the DataFrame")
+            family_missing = set(samples) - samples_in_mt
+            if family_missing:
+                logging.info(
+                    f"Family {family} is not fully represented in the data. "
+                    f"Samples missing: {sorted(family_missing)}"
+                )
 
     # problem, none present
     else:
-        print(f"No requested samples were present in the MT, please check format matches '{samples_in_mt.pop()}'")
+        logging.error(
+            f"No requested samples were present in the MT, please check format matches '{samples_in_mt.pop()}'"
+        )
 
     return False
+
+
+def get_all_unique_members(family_dict: dict) -> set:
+    """
+    pulls all individual members from a dict and returns as a set
+    """
+    return set(chain.from_iterable(family_dict.values()))
 
 
 @click.command()
@@ -61,7 +80,7 @@ def main(json_str: str, dataset: str):
     gcp_mt_full = os.path.join(gcp_main, "mt", f"{dataset}.mt")
 
     # collect all unique sample IDs for a single filter on the MT
-    all_samples = set(chain.from_iterable(families_dict.values()))
+    all_samples = get_all_unique_members(families_dict)
 
     # initiate Hail expecting GRCh38
     hl.init(default_reference='GRCh38')
@@ -98,4 +117,12 @@ def main(json_str: str, dataset: str):
 
 
 if __name__ == "__main__":
+
+    # verbose logging, but this will cause issues matching exact strings in tests
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(threadName)s] %(levelname)s %(module)s:%(lineno)d - %(message)s",
+        datefmt="%Y-%M-%d %H:%M:%S",
+        stream=sys.stderr,
+    )
     main()
