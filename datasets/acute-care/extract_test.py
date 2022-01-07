@@ -2,6 +2,7 @@ import hail as hl
 import logging
 import os
 import pytest
+import re
 
 # import the local methods
 from extract_trio_vcf import (
@@ -80,6 +81,13 @@ class TestMT:
         hl.import_vcf(VCF_PATH).write(MT_PATH, overwrite=True)
         cls.mt = hl.read_matrix_table(MT_PATH)
         logging.basicConfig(level=logging.INFO)
+
+    @classmethod
+    def teardown_class(cls):
+        import shutil
+        shutil.rmtree(MT_PATH)
+        [os.remove(path) for path in os.listdir(CURDIR) if re.match(r'hail.*\.log', path)]
+
 
     def test_partial_failure(self, caplog, partial_family_dict):
         caplog.set_level(logging.INFO)
