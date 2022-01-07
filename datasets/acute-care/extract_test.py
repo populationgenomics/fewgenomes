@@ -9,7 +9,6 @@ from extract_trio_vcf import (
     check_samples_in_mt,
     get_all_unique_members,
     obtain_mt_subset,
-    process_each_family,
     NotAllSamplesPresent,
 )
 
@@ -141,9 +140,3 @@ class TestMT:
         mt_result = obtain_mt_subset(self.mt, selected_samples)
         result_samples = mt_result.s.collect()
         assert set(result_samples) != selected_samples
-
-    def test_process_each_family(self, complete_family_dict):
-        fam_1_samples = complete_family_dict["fam1"]
-        reduced_mt = process_each_family(self.mt, family_samples=fam_1_samples)
-        assert sorted(fam_1_samples) == sorted(reduced_mt.s.collect())
-        assert reduced_mt.count_rows() == 1

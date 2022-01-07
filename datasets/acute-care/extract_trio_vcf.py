@@ -76,31 +76,16 @@ def read_mt(mt_location: str, reference: str = "GRCh38") -> hail.MatrixTable:
     hl.init(default_reference=reference)
 
     # open full MT (note, not all read in, this is done lazily with spark)
-    mt = hl.read_matrix_table(mt_location)
-
-    return mt
+    return hl.read_matrix_table(mt_location)
 
 
-def obtain_mt_subset(matrix: hail.MatrixTable, samples: set) -> hail.MatrixTable:
+def obtain_mt_subset(matrix: hail.MatrixTable, samples: list) -> hail.MatrixTable:
     """
     implements the actual subsetting of the MT
     """
 
     # filter the full dataset to only the samples we're interested in
-    mt = matrix.filter_cols(hl.literal(samples).contains(matrix["s"]))
-    return mt
-
-
-def process_each_family(
-    reduced_mt: hail.MatrixTable, family_samples: list
-) -> hail.MatrixTable:
-    # take the list of samples and translate to a hail expression
-    samples_to_retain = hl.literal(family_samples)
-
-    # based on defaults for hl.import_vcf, location for the sample ID would be the attribute 's'
-    family_mt = reduced_mt.filter_cols(samples_to_retain.contains(reduced_mt["s"]))
-
-    return family_mt
+    return matrix.filter_cols(hl.literal(samples).contains(matrix["s"]))
 
 
 @click.command()
@@ -135,14 +120,6 @@ def main(json_str: str, dataset: str, reference: Optional[str]):
     # check that all the samples are present - alter this so the method either completes or raises Exception?
     check_samples_in_mt(all_samples, families_dict, mt)
 
-    # filter the full dataset to only the samples we're interested in
-    """
-    Query for Vlad - is it any more efficient to minimise the MT, then subset it?
-    It seems like with the MT not being read into memory immediately, this serves no purpose
-    We are equally positioned by choosing the specific family subset before enacting the query
-    """
-    mt = obtain_mt_subset(mt, all_samples)
-
     # if we want to implement a region filter, e.g. MANE plus clinical, this would be the ideal time
     # current thinking is that it's not necessary at this time, as the case-specific work will determine
     # the regions of interest, etc.
@@ -151,7 +128,7 @@ def main(json_str: str, dataset: str, reference: Optional[str]):
     for family, samples in families_dict.items():
 
         # pull out only this family's samples from the MT
-        family_mt = process_each_family(mt, samples)
+        family_mt = obtain_mt_subset(mt, samples)
 
         # write this family MT to a test location
         family_mt.write(os.path.join(gcp_test, f"{family}.mt"))
