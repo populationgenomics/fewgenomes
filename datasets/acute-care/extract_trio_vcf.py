@@ -1,4 +1,5 @@
 import click
+import hail
 import hail as hl
 import json
 import logging
@@ -6,7 +7,7 @@ import os
 import sys
 
 from itertools import chain
-
+from typing import Optional
 
 """
 simple procedural script that is provided with command line inputs
@@ -19,21 +20,28 @@ Additional - check that the requested samples are present, and throw exceptions 
 """
 
 
-def check_for_samples(sample_names: set, family_structures: dict, mat: hl.MatrixTable) -> bool:
+class NotAllSamplesPresent(Exception):
+    pass
+
+
+def check_samples_in_mt(
+    sample_names: set, family_structures: dict, mat: hl.MatrixTable
+):
     """
     checks if all samples are present
     - if not, checks for any samples being present
     - if some but not all flag families, if all are missing flag the values as possibly in wrong format
+
+    could restructure this so that we only check for absence, with the 'good' case being no errors
     """
     samples_in_mt = set(mat.s.collect())
 
-    print(sample_names)
-    print(samples_in_mt)
-
     # all good?
     if all([sam in samples_in_mt for sam in sample_names]):
-        logging.info(f"All {len(samples_in_mt)} samples represented across {len(family_structures)} families")
-        return True
+        logging.info(
+            f"All {len(samples_in_mt)} samples represented across {len(family_structures)} families"
+        )
+        return
 
     # partially good? some requested samples are present, but not all
     elif any([sam in samples_in_mt for sam in sample_names]):
@@ -51,7 +59,7 @@ def check_for_samples(sample_names: set, family_structures: dict, mat: hl.Matrix
             f"No requested samples were present in the MT, please check format matches '{samples_in_mt.pop()}'"
         )
 
-    return False
+    raise NotAllSamplesPresent("please check logging messages for details")
 
 
 def get_all_unique_members(family_dict: dict) -> set:
@@ -59,6 +67,40 @@ def get_all_unique_members(family_dict: dict) -> set:
     pulls all individual members from a dict and returns as a set
     """
     return set(chain.from_iterable(family_dict.values()))
+
+
+def read_mt(mt_location: str, reference: str = "GRCh38") -> hail.MatrixTable:
+    assert os.path.exists(mt_location), f"Path to the mt doesn't exist: {mt_location}"
+
+    # initiate Hail expecting GRCh38
+    hl.init(default_reference=reference)
+
+    # open full MT (note, not all read in, this is done lazily with spark)
+    mt = hl.read_matrix_table(mt_location)
+
+    return mt
+
+
+def obtain_mt_subset(matrix: hail.MatrixTable, samples: set) -> hail.MatrixTable:
+    """
+    implements the actual subsetting of the MT
+    """
+
+    # filter the full dataset to only the samples we're interested in
+    mt = matrix.filter_cols(hl.literal(samples).contains(matrix["s"]))
+    return mt
+
+
+def process_each_family(
+    reduced_mt: hail.MatrixTable, family_samples: list
+) -> hail.MatrixTable:
+    # take the list of samples and translate to a hail expression
+    samples_to_retain = hl.literal(family_samples)
+
+    # based on defaults for hl.import_vcf, location for the sample ID would be the attribute 's'
+    family_mt = reduced_mt.filter_cols(samples_to_retain.contains(reduced_mt["s"]))
+
+    return family_mt
 
 
 @click.command()
@@ -70,7 +112,13 @@ def get_all_unique_members(family_dict: dict) -> set:
 @click.option(
     "--dataset", help="name of the dataset to use (gcp bucket names)", type=click.STRING
 )
-def main(json_str: str, dataset: str):
+@click.option(
+    "--ref", help="name of GRChXX reference to use", default="GRCh38", type=click.STRING
+)
+def main(json_str: str, dataset: str, reference: Optional[str]):
+    """
+    this method is currently too heavy, so I'll break into component steps
+    """
 
     # parse the families dict from the input string, e.g. '{"fam1":["sam1","sam2"]}'
     families_dict = json.loads(json_str)
@@ -82,19 +130,18 @@ def main(json_str: str, dataset: str):
     # collect all unique sample IDs for a single filter on the MT
     all_samples = get_all_unique_members(families_dict)
 
-    # initiate Hail expecting GRCh38
-    hl.init(default_reference='GRCh38')
+    mt = read_mt(gcp_mt_full, reference=reference)
 
-    # open full MT (note, not all read in, this is done lazily with spark)
-    mt = hl.read_matrix_table(gcp_mt_full)
-
-    # check that all the samples are present
-    valid_names = check_for_samples(all_samples, families_dict, mt)
-    if not valid_names:
-        exit()
+    # check that all the samples are present - alter this so the method either completes or raises Exception?
+    check_samples_in_mt(all_samples, families_dict, mt)
 
     # filter the full dataset to only the samples we're interested in
-    mt = mt.filter_cols(hl.literal(all_samples).contains(mt["s"]))
+    """
+    Query for Vlad - is it any more efficient to minimise the MT, then subset it?
+    It seems like with the MT not being read into memory immediately, this serves no purpose
+    We are equally positioned by choosing the specific family subset before enacting the query
+    """
+    mt = obtain_mt_subset(mt, all_samples)
 
     # if we want to implement a region filter, e.g. MANE plus clinical, this would be the ideal time
     # current thinking is that it's not necessary at this time, as the case-specific work will determine
@@ -103,11 +150,8 @@ def main(json_str: str, dataset: str):
     # for each family, dump both a small MT and a VCF containing the same samples/variants
     for family, samples in families_dict.items():
 
-        # take the list of samples and translate to a hail expression
-        samples_to_retain = hl.literal(samples)
-
-        # based on defaults for hl.import_vcf, location for the sample ID would be the attribute 's'
-        family_mt = mt.filter_cols(samples_to_retain.contains(mt["s"]))
+        # pull out only this family's samples from the MT
+        family_mt = process_each_family(mt, samples)
 
         # write this family MT to a test location
         family_mt.write(os.path.join(gcp_test, f"{family}.mt"))
@@ -117,7 +161,6 @@ def main(json_str: str, dataset: str):
 
 
 if __name__ == "__main__":
-
     # verbose logging, but this will cause issues matching exact strings in tests
     logging.basicConfig(
         level=logging.INFO,

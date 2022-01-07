@@ -3,8 +3,14 @@ import logging
 import os
 import pytest
 
-# import the local method
-from extract_trio_vcf import check_for_samples, get_all_unique_members
+# import the local methods
+from extract_trio_vcf import (
+    check_samples_in_mt,
+    get_all_unique_members,
+    obtain_mt_subset,
+    process_each_family,
+    NotAllSamplesPresent,
+)
 
 
 """
@@ -31,33 +37,24 @@ def load_mt():
 @pytest.fixture()
 def partial_family_dict():
     yield {
-        "fam1": ['HG00607', 'HG00619', 'HG00623'],
-        "fam2": ['HG00657', "not", "present"]
+        "fam1": ["HG00607", "HG00619", "HG00623"],
+        "fam2": ["HG00657", "not", "present"],
     }
 
 
 @pytest.fixture()
 def complete_family_dict():
-    yield {
-        "fam1": ['HG00607', 'HG00619', 'HG00623'],
-        "fam2": ['HG00657']
-    }
+    yield {"fam1": ["HG00607", "HG00619", "HG00623"], "fam2": ["HG00657"]}
 
 
 @pytest.fixture()
 def zero_family_dict():
-    yield {
-        "fam1": ['all', 'samples', 'are'],
-        "fam2": ['missing']
-    }
+    yield {"fam1": ["all", "samples", "are"], "fam2": ["missing"]}
 
 
 @pytest.fixture()
 def empty_family_dict():
-    yield {
-        "fam1": [],
-        "fam2": []
-    }
+    yield {"fam1": [], "fam2": []}
 
 
 def test_chain_empty(empty_family_dict: dict):
@@ -86,33 +83,59 @@ class TestMT:
 
     def test_partial_failure(self, caplog, partial_family_dict):
         caplog.set_level(logging.INFO)
-        all_samples = {'HG00607', 'HG00619', 'HG00623', 'HG00657', 'not', 'present'}
-        bool_response = check_for_samples(
-            sample_names=all_samples,
-            family_structures=partial_family_dict,
-            mat=self.mt
+        all_samples = {"HG00607", "HG00619", "HG00623", "HG00657", "not", "present"}
+        with pytest.raises(NotAllSamplesPresent):
+            check_samples_in_mt(
+                sample_names=all_samples,
+                family_structures=partial_family_dict,
+                mat=self.mt,
+            )
+        assert (
+            "Family fam2 is not fully represented in the data. Samples missing: ['not', 'present']"
+            in caplog.text
         )
-        assert not bool_response
-        assert "Family fam2 is not fully represented in the data. Samples missing: ['not', 'present']" in caplog.text
 
     def test_full_failure(self, caplog, zero_family_dict):
         caplog.set_level(logging.INFO)
         all_samples = {"all", "are", "missing", "samples"}
-        bool_response = check_for_samples(
-            sample_names=all_samples,
-            family_structures=zero_family_dict,
-            mat=self.mt
-        )
-        assert not bool_response
+        with pytest.raises(NotAllSamplesPresent):
+            check_samples_in_mt(
+                sample_names=all_samples,
+                family_structures=zero_family_dict,
+                mat=self.mt,
+            )
         # can't predict the sample that will be popped off
-        assert "No requested samples were present in the MT, please check format matches 'HG" in caplog.text
+        assert (
+            "No requested samples were present in the MT, please check format matches 'HG"
+            in caplog.text
+        )
 
     def test_working_check(self, caplog: pytest.fixture, complete_family_dict: dict):
         caplog.set_level(logging.INFO)
-        all_samples = {'HG00607', 'HG00619', 'HG00623', 'HG00657'}
-        bool_response = check_for_samples(
+        all_samples = {"HG00607", "HG00619", "HG00623", "HG00657"}
+        check_samples_in_mt(
             sample_names=all_samples,
             family_structures=complete_family_dict,
-            mat=self.mt
+            mat=self.mt,
         )
-        assert bool_response
+
+    def test_obtain_subset(self):
+        selected_samples = {"HG00607", "HG00619"}
+        mt_result = obtain_mt_subset(self.mt, selected_samples)
+        result_samples = mt_result.s.collect()
+        assert set(result_samples) == selected_samples
+
+    def test_obtain_subset_absent(self):
+        """
+        the hail mechanics shouldn't throw an error, but data should be 'incomplete'
+        """
+        selected_samples = {"HG00607", "NotHere"}
+        mt_result = obtain_mt_subset(self.mt, selected_samples)
+        result_samples = mt_result.s.collect()
+        assert set(result_samples) != selected_samples
+
+    def test_process_each_family(self, complete_family_dict):
+        fam_1_samples = complete_family_dict["fam1"]
+        reduced_mt = process_each_family(self.mt, family_samples=fam_1_samples)
+        assert sorted(fam_1_samples) == sorted(reduced_mt.s.collect())
+        assert reduced_mt.count_rows() == 1
