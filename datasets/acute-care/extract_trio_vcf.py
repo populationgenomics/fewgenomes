@@ -9,14 +9,14 @@ import sys
 from itertools import chain
 from typing import Optional
 
+from google.cloud import storage
+
+
 """
-simple procedural script that is provided with command line inputs
+Procedural script that is provided with command line inputs
 - the JSON dictionary representing "family_name_1: [list, of, internal, sample, IDs], "
 - the project/dataset name, used to identify the buckets assc. with the specific project
 
-arguments passing mediated with click, so minimal hard-coding required 
-
-Additional - check that the requested samples are present, and throw exceptions if not
 """
 
 
@@ -25,7 +25,7 @@ class NotAllSamplesPresent(Exception):
 
 
 def check_samples_in_mt(
-    sample_names: set, family_structures: dict, mat: hl.MatrixTable
+    sample_names: set, family_structures: dict, mat: hail.MatrixTable
 ):
     """
     checks if all samples are present
@@ -70,7 +70,6 @@ def get_all_unique_members(family_dict: dict) -> set:
 
 
 def read_mt(mt_location: str, reference: str = "GRCh38") -> hail.MatrixTable:
-    assert os.path.exists(mt_location), f"Path to the mt doesn't exist: {mt_location}"
 
     # initiate Hail expecting GRCh38
     hl.init(default_reference=reference)
@@ -88,6 +87,16 @@ def obtain_mt_subset(matrix: hail.MatrixTable, samples: list) -> hail.MatrixTabl
     return matrix.filter_cols(hl.literal(samples).contains(matrix["s"]))
 
 
+def check_gcp_file_exists(bucket: str, filepath: str) -> bool:
+    """
+    use google-cloud methods to check for the existence of a file
+    os.path.exists was not able to check for presence
+    """
+    storage_client = storage.Client()
+    bucket = storage_client.bucket(bucket)
+    return storage.Blob(bucket=bucket, name=filepath).exists(storage_client)
+
+
 @click.command()
 @click.option(
     "--json-str",
@@ -98,14 +107,18 @@ def obtain_mt_subset(matrix: hail.MatrixTable, samples: list) -> hail.MatrixTabl
     "--dataset", help="name of the dataset to use (gcp bucket names)", type=click.STRING
 )
 @click.option(
-    "--ref", "reference", help="name of GRChXX reference to use", default="GRCh38", type=click.STRING
+    "--ref",
+    "reference",
+    help="name of GRChXX reference to use",
+    default="GRCh38",
+    type=click.STRING,
 )
 @click.option(
     "--multi_fam",
     "multi_fam",
     is_flag=True,
     default=False,
-    help="use this flag if we also want a multi-family MT written to test"
+    help="use this flag if we also want a multi-family MT written to test",
 )
 def main(json_str: str, dataset: str, reference: Optional[str], multi_fam: bool):
     """
@@ -119,9 +132,17 @@ def main(json_str: str, dataset: str, reference: Optional[str], multi_fam: bool)
     # parse the families dict from the input string, e.g. '{"fam1":["sam1","sam2"]}'
     families_dict = json.loads(json_str)
 
-    gcp_test = f"gs://cpg-{dataset}-test"
-    gcp_main = f"gs://cpg-{dataset}-main"
-    gcp_mt_full = os.path.join(gcp_main, "mt", f"{dataset}.mt")
+    gcp_test_bucket = f"gs://cpg-{dataset}-test"
+
+    # path built in this way to pass separate components to the GCP file check
+    gcp_main_bucket = f"gs://cpg-{dataset}-main"
+    mt_in_bucket = os.path.join("mt", f"{dataset}.mt")
+    gcp_mt_full = os.path.join(gcp_main_bucket, mt_in_bucket)
+
+    # check that the MT exists
+    assert check_gcp_file_exists(
+        bucket=gcp_main_bucket, filepath=mt_in_bucket
+    ), f"MT path {gcp_mt_full} not present in bucket"
 
     # collect all unique sample IDs for a single filter on the MT
     all_samples = get_all_unique_members(families_dict)
@@ -132,14 +153,12 @@ def main(json_str: str, dataset: str, reference: Optional[str], multi_fam: bool)
         # pull all samples from all requested families
         multi_fam_mt = obtain_mt_subset(mt, list(all_samples))
         # force-write this family MT to a test location
-        multi_fam_mt.write(os.path.join(gcp_test, "multiple_families.mt"), overwrite=True)
+        multi_fam_mt.write(
+            os.path.join(gcp_test_bucket, "multiple_families.mt"), overwrite=True
+        )
 
     # check that all the samples are present - alter this so the method either completes or raises Exception?
     check_samples_in_mt(all_samples, families_dict, mt)
-
-    # if we want to implement a region filter, e.g. MANE plus clinical, this would be the ideal time
-    # current thinking is that it's not necessary at this time, as the case-specific work will determine
-    # the regions of interest, etc.
 
     # for each family, dump both a small MT and a VCF containing the same samples/variants
     for family, samples in families_dict.items():
@@ -148,10 +167,10 @@ def main(json_str: str, dataset: str, reference: Optional[str], multi_fam: bool)
         family_mt = obtain_mt_subset(mt, samples)
 
         # write this family MT to a test location
-        family_mt.write(os.path.join(gcp_test, f"{family}.mt"))
+        family_mt.write(os.path.join(gcp_test_bucket, f"{family}.mt"))
 
         # revert to a VCF file format, and write to a test location
-        hl.export_vcf(os.path.join(gcp_test, f"{family}.vcf.bgz"))
+        hl.export_vcf(os.path.join(gcp_test_bucket, f"{family}.vcf.bgz"))
 
 
 if __name__ == "__main__":
