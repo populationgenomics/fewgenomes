@@ -1,6 +1,7 @@
 name: fewgenomes
 
 dependencies:
+  - analysis-runner
   - snakemake-minimal
   - pandas
   - google-cloud-sdk

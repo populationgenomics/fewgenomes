@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+
+
 import click
 import hail as hl
 import json
@@ -5,7 +8,6 @@ import logging
 import os
 import sys
 
-from google.cloud import storage
 from itertools import chain
 from typing import Optional
 
