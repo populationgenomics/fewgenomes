@@ -85,16 +85,6 @@ def obtain_mt_subset(matrix: hl.MatrixTable, samples: list) -> hl.MatrixTable:
     return matrix.filter_cols(hl.literal(samples).contains(matrix["s"]))
 
 
-def check_gcp_file_exists(bucket: str, filepath: str) -> bool:
-    """
-    use google-cloud methods to check for the existence of a file
-    os.path.exists was not able to check for presence
-    """
-    storage_client = storage.Client()
-    bucket = storage_client.bucket(bucket)
-    return storage.Blob(bucket=bucket, name=filepath).exists(storage_client)
-
-
 @click.command()
 @click.option(
     "--json-str",
@@ -136,11 +126,6 @@ def main(json_str: str, dataset: str, reference: Optional[str], multi_fam: bool)
     gcp_main_bucket = f"gs://cpg-{dataset}-main"
     mt_in_bucket = os.path.join("mt", f"{dataset}.mt")
     gcp_mt_full = os.path.join(gcp_main_bucket, mt_in_bucket)
-
-    # check that the MT exists
-    assert check_gcp_file_exists(
-        bucket=gcp_main_bucket, filepath=mt_in_bucket
-    ), f"MT path {gcp_mt_full} not present in bucket"
 
     # collect all unique sample IDs for a single filter on the MT
     all_samples = get_all_unique_members(families_dict)
