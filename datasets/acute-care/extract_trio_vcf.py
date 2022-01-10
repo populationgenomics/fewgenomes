@@ -37,7 +37,7 @@ def check_samples_in_mt(
     samples_in_mt = set(mat.s.collect())
 
     # all good?
-    if not sample_names - samples_in_mt:
+    if len(sample_names - samples_in_mt) == 0:
         logging.info(
             f"All {len(samples_in_mt)} samples represented across {len(family_structures)} families"
         )
