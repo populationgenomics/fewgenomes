@@ -18,19 +18,20 @@ def main():
     """
 
     service_backend = hb.ServiceBackend(
-        billing_project=os.getenv('HAIL_BILLING_PROJECT'), bucket=os.getenv('HAIL_BUCKET')
+        billing_project=os.getenv("HAIL_BILLING_PROJECT"),
+        bucket=os.getenv("HAIL_BUCKET"),
     )
 
     # create a hail batch
-    batch = hb.Batch(name='cohort_mt_extraction', backend=service_backend)
+    batch = hb.Batch(name="cohort_mt_extraction", backend=service_backend)
 
-    my_cluster = dataproc.hail_dataproc_job(
+    my_job = dataproc.hail_dataproc_job(
         batch=batch,
         script=" ".join(sys.argv[1:]),
-        max_age='4h',
+        max_age="4h",
         job_name="extract_from_cohort_mt",
         num_secondary_workers=4,
-        cluster_name='cohort_mt_extraction with max-age=4h',
+        cluster_name="cohort_mt_extraction with max-age=4h",
     )
 
     batch.run(wait=False)
