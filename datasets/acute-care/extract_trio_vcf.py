@@ -1,15 +1,13 @@
 import click
-import hail
 import hail as hl
 import json
 import logging
 import os
 import sys
 
+from google.cloud import storage
 from itertools import chain
 from typing import Optional
-
-from google.cloud import storage
 
 
 """
