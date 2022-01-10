@@ -23,7 +23,7 @@ class NotAllSamplesPresent(Exception):
 
 
 def check_samples_in_mt(
-    sample_names: set, family_structures: dict, mat: hail.MatrixTable
+    sample_names: set, family_structures: dict, mat: hl.MatrixTable
 ):
     """
     checks if all samples are present
@@ -67,7 +67,7 @@ def get_all_unique_members(family_dict: dict) -> set:
     return set(chain.from_iterable(family_dict.values()))
 
 
-def read_mt(mt_location: str, reference: str = "GRCh38") -> hail.MatrixTable:
+def read_mt(mt_location: str, reference: str = "GRCh38") -> hl.MatrixTable:
 
     # initiate Hail expecting GRCh38
     hl.init(default_reference=reference)
@@ -76,7 +76,7 @@ def read_mt(mt_location: str, reference: str = "GRCh38") -> hail.MatrixTable:
     return hl.read_matrix_table(mt_location)
 
 
-def obtain_mt_subset(matrix: hail.MatrixTable, samples: list) -> hail.MatrixTable:
+def obtain_mt_subset(matrix: hl.MatrixTable, samples: list) -> hl.MatrixTable:
     """
     implements the actual subsetting of the MT
     """
