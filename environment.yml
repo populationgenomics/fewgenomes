@@ -6,3 +6,4 @@ dependencies:
   - google-cloud-sdk
   - google-cloud-storage
   - progressbar2
+  - hail
