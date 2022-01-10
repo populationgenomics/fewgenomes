@@ -120,14 +120,8 @@ def main(json_str: str, dataset: str, reference: Optional[str], multi_fam: bool)
     families_dict = json.loads(json_str)
 
     gcp_test = f"gs://cpg-{dataset}-test"
-    gcp_test_mt_outputs = os.path.join(gcp_test, "extracted_mts")
-    gcp_test_vcf_outputs = os.path.join(gcp_test, "extracted_vcfs")
     gcp_main = f"gs://cpg-{dataset}-main"
     gcp_mt_full = os.path.join(gcp_main, "mt", f"{dataset}.mt")
-
-    # create the output paths as empty folders
-    os.makedirs(gcp_test_mt_outputs, exist_ok=True)
-    os.makedirs(gcp_test_vcf_outputs, exist_ok=True)
 
     # collect all unique sample IDs for a single filter on the MT
     all_samples = get_all_unique_members(families_dict)
@@ -138,7 +132,7 @@ def main(json_str: str, dataset: str, reference: Optional[str], multi_fam: bool)
         # pull all samples from all requested families
         multi_fam_mt = obtain_mt_subset(mt, list(all_samples))
         # force-write this family MT to a test location
-        multi_fam_mt.write(os.path.join(gcp_test_mt_outputs, "multiple_families.mt"), overwrite=True)
+        multi_fam_mt.write(os.path.join(gcp_test, "multiple_families.mt"), overwrite=True)
 
     # check that all the samples are present - alter this so the method either completes or raises Exception?
     check_samples_in_mt(all_samples, families_dict, mt)
@@ -154,10 +148,10 @@ def main(json_str: str, dataset: str, reference: Optional[str], multi_fam: bool)
         family_mt = obtain_mt_subset(mt, samples)
 
         # write this family MT to a test location
-        family_mt.write(os.path.join(gcp_test_mt_outputs, f"{family}.mt"))
+        family_mt.write(os.path.join(gcp_test, f"{family}.mt"))
 
         # revert to a VCF file format, and write to a test location
-        hl.export_vcf(os.path.join(gcp_test_vcf_outputs, f"{family}.vcf.bgz"))
+        hl.export_vcf(os.path.join(gcp_test, f"{family}.vcf.bgz"))
 
 
 if __name__ == "__main__":
