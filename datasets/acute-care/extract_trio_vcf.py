@@ -37,14 +37,14 @@ def check_samples_in_mt(
     samples_in_mt = set(mat.s.collect())
 
     # all good?
-    if all([sam in samples_in_mt for sam in sample_names]):
+    if not sample_names - samples_in_mt:
         logging.info(
             f"All {len(samples_in_mt)} samples represented across {len(family_structures)} families"
         )
         return
 
     # partially good? some requested samples are present, but not all
-    elif any([sam in samples_in_mt for sam in sample_names]):
+    elif samples_in_mt.intersection(sample_names):
         for family, samples in family_structures.items():
             family_missing = set(samples) - samples_in_mt
             if family_missing:
@@ -64,7 +64,7 @@ def check_samples_in_mt(
 
 def get_all_unique_members(family_dict: dict) -> set:
     """
-    pulls all individual members from a dict and returns as a set
+    pulls all unique individual members from a dict and returns as a set
     """
     return set(chain.from_iterable(family_dict.values()))
 
@@ -98,24 +98,47 @@ def obtain_mt_subset(matrix: hail.MatrixTable, samples: list) -> hail.MatrixTabl
     "--dataset", help="name of the dataset to use (gcp bucket names)", type=click.STRING
 )
 @click.option(
-    "--ref", help="name of GRChXX reference to use", default="GRCh38", type=click.STRING
+    "--ref", "reference", help="name of GRChXX reference to use", default="GRCh38", type=click.STRING
 )
-def main(json_str: str, dataset: str, reference: Optional[str]):
+@click.option(
+    "--multi_fam",
+    "multi_fam",
+    is_flag=True,
+    default=False,
+    help="use this flag if we also want a multi-family MT written to test"
+)
+def main(json_str: str, dataset: str, reference: Optional[str], multi_fam: bool):
     """
-    this method is currently too heavy, so I'll break into component steps
+    This takes the family structures encoded in the JSON str and creates a number of single-family objects in Test
+
+    The option to include a multi-family structure is useful for experimenting with operations mapping MOI patterns
+    per-family within a larger dataset. This will be useful in analysing runtime/cost of analysing a single family with
+    and without extracting from a larger dataset first
     """
 
     # parse the families dict from the input string, e.g. '{"fam1":["sam1","sam2"]}'
     families_dict = json.loads(json_str)
 
     gcp_test = f"gs://cpg-{dataset}-test"
+    gcp_test_mt_outputs = os.path.join(gcp_test, "extracted_mts")
+    gcp_test_vcf_outputs = os.path.join(gcp_test, "extracted_vcfs")
     gcp_main = f"gs://cpg-{dataset}-main"
     gcp_mt_full = os.path.join(gcp_main, "mt", f"{dataset}.mt")
+
+    # create the output paths as empty folders
+    os.makedirs(gcp_test_mt_outputs, exist_ok=True)
+    os.makedirs(gcp_test_vcf_outputs, exist_ok=True)
 
     # collect all unique sample IDs for a single filter on the MT
     all_samples = get_all_unique_members(families_dict)
 
     mt = read_mt(gcp_mt_full, reference=reference)
+
+    if multi_fam:
+        # pull all samples from all requested families
+        multi_fam_mt = obtain_mt_subset(mt, list(all_samples))
+        # force-write this family MT to a test location
+        multi_fam_mt.write(os.path.join(gcp_test_mt_outputs, "multiple_families.mt"), overwrite=True)
 
     # check that all the samples are present - alter this so the method either completes or raises Exception?
     check_samples_in_mt(all_samples, families_dict, mt)
@@ -131,10 +154,10 @@ def main(json_str: str, dataset: str, reference: Optional[str]):
         family_mt = obtain_mt_subset(mt, samples)
 
         # write this family MT to a test location
-        family_mt.write(os.path.join(gcp_test, f"{family}.mt"))
+        family_mt.write(os.path.join(gcp_test_mt_outputs, f"{family}.mt"))
 
         # revert to a VCF file format, and write to a test location
-        hl.export_vcf(os.path.join(gcp_test, f"{family}.vcf.bgz"))
+        hl.export_vcf(os.path.join(gcp_test_vcf_outputs, f"{family}.vcf.bgz"))
 
 
 if __name__ == "__main__":
