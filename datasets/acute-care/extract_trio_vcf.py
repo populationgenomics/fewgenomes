@@ -123,7 +123,14 @@ def obtain_mt_subset(matrix: hl.MatrixTable, samples: list) -> hl.MatrixTable:
     default=False,
     help="use to skip the writing of subset VCF files",
 )
-def main(json_str: str, dataset: str, reference: Optional[str], multi_fam: bool, skip_mt: bool, skip_vcf: bool):
+def main(
+    json_str: str,
+    dataset: str,
+    reference: Optional[str],
+    multi_fam: bool,
+    skip_mt: bool,
+    skip_vcf: bool,
+):
     """
     This takes the family structures encoded in the JSON str and creates a number of single-family objects in Test
 

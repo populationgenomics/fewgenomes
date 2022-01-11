@@ -98,6 +98,28 @@ def get_family_to_sample_map(
     return dict_result
 
 
+def get_escaped_json_string(pedigree_dict: dict) -> str:
+    """
+    This string is used as an argument to analysis-runner, which submits it as a string argument to a dataproc process
+    By escaping we ensure the second round of arguments are received correctly
+    """
+    json_string = json.dumps(pedigree_dict, separators=(",", ":"))
+    escaped = json_string.translate(
+        str.maketrans(
+            {
+                "{": r"\{",
+                "}": r"\}",
+                "]": r"\]",
+                "[": r"\[",
+                ",": r"\,",
+                ":": r"\:",
+                '"': r'\"',
+            }
+        )
+    )
+    return escaped
+
+
 @click.command()
 @click.option(
     "--project",
@@ -203,7 +225,9 @@ def main(project: str, families: Tuple[str], external: bool, auth_token: str):
     )
 
     # now print as a string value, with no spaces
-    print(json.dumps(family_to_samples_dict, separators=(",", ":")))
+    json_formatted = get_escaped_json_string(pedigree_dict=family_to_samples_dict)
+    print(json_formatted)
+    # print(json.dumps(family_to_samples_dict, separators=(",", ":")))
 
 
 URL_BASE = "https://sample-metadata-api-mnrpw3mdza-ts.a.run.app/api/v1"
