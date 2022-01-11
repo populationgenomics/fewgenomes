@@ -16,7 +16,6 @@ from typing import Optional
 Procedural script that is provided with command line inputs
 - the JSON dictionary representing "family_name_1: [list, of, internal, sample, IDs], "
 - the project/dataset name, used to identify the buckets assc. with the specific project
-
 """
 
 
@@ -39,7 +38,7 @@ def check_samples_in_mt(
     # all good?
     if len(sample_names - samples_in_mt) == 0:
         logging.info(
-            f"All {len(samples_in_mt)} samples represented across {len(family_structures)} families"
+            f"All {len(sample_names)} samples represented across {len(family_structures)} families"
         )
         return
 
@@ -110,13 +109,29 @@ def obtain_mt_subset(matrix: hl.MatrixTable, samples: list) -> hl.MatrixTable:
     default=False,
     help="use this flag if we also want a multi-family MT written to test",
 )
-def main(json_str: str, dataset: str, reference: Optional[str], multi_fam: bool):
+@click.option(
+    "--skip_mt",
+    "skip_mt",
+    is_flag=True,
+    default=False,
+    help="use to skip the writing of subset MT files",
+)
+@click.option(
+    "--skip_vcf",
+    "skip_vcf",
+    is_flag=True,
+    default=False,
+    help="use to skip the writing of subset VCF files",
+)
+def main(json_str: str, dataset: str, reference: Optional[str], multi_fam: bool, skip_mt: bool, skip_vcf: bool):
     """
     This takes the family structures encoded in the JSON str and creates a number of single-family objects in Test
 
     The option to include a multi-family structure is useful for experimenting with operations mapping MOI patterns
     per-family within a larger dataset. This will be useful in analysing runtime/cost of analysing a single family with
     and without extracting from a larger dataset first
+
+    Additional options permit the skipping of either the VCF or MT for each family subset
     """
 
     # parse the families dict from the input string, e.g. '{"fam1":["sam1","sam2"]}'
@@ -151,11 +166,14 @@ def main(json_str: str, dataset: str, reference: Optional[str], multi_fam: bool)
         # pull out only this family's samples from the MT
         family_mt = obtain_mt_subset(mt, samples)
 
-        # write this family MT to a test location
-        family_mt.write(os.path.join(gcp_test_bucket, f"{family}.mt"))
+        if not skip_mt:
+            # write this family MT to a test location
+            family_mt.write(os.path.join(gcp_test_bucket, f"{family}.mt"))
 
-        # revert to a VCF file format, and write to a test location
-        hl.export_vcf(os.path.join(gcp_test_bucket, f"{family}.vcf.bgz"))
+        if not skip_vcf:
+            # revert to a VCF file format, and write to a test location
+            # hail generic method, so the MT is an argument
+            hl.export_vcf(family_mt, os.path.join(gcp_test_bucket, f"{family}.vcf.bgz"))
 
 
 if __name__ == "__main__":

@@ -84,9 +84,13 @@ class TestMT:
     @classmethod
     def teardown_class(cls):
         import shutil
-        shutil.rmtree(MT_PATH)
-        [os.remove(path) for path in os.listdir(CURDIR) if re.match(r'hail.*\.log', path)]
 
+        shutil.rmtree(MT_PATH)
+        [
+            os.remove(path)
+            for path in os.listdir(CURDIR)
+            if re.match(r"hail.*\.log", path)
+        ]
 
     def test_partial_failure(self, caplog, partial_family_dict):
         caplog.set_level(logging.INFO)

@@ -2,6 +2,15 @@
 
 """
 Wrapper script to initiate a hail batch, and submit using an analysis-runner managed dataproc cluster
+
+A consequence of this wrapping is that the json-str argument needs a monster amount of escaping to be passed
+successfully as a command-line argument to the pyspark process
+
+e.g.
+
+--json-str '{"FAM1":["P1"]}'
+becomes
+--json-str '\{\"FAM1\"\:\[\"P1\"\]\}'
 """
 import hailtop.batch as hb
 import os
