@@ -40,6 +40,9 @@ def main(file: str):
     )
 
     job = batch.new_job(name='run tabix')
+    job.cpu(2)
+    job.memory('standard')  # ~ 4G/core ~ 7.5G
+    job.storage('20G')
     job.declare_resource_group(
         vcf={'vcf': '{root}.vcf.gz', 'index': '{root}.vcf.gz.tbi'}
     )
