@@ -28,9 +28,13 @@ def main(file: str):
     Create a Hail Batch, and run a tabix task within a job
     """
 
+    gcp_bucket = os.getenv('HAIL_BUCKET')
+    if gcp_bucket is None:
+        raise Exception('Bucket not assigned to this job')
+
     service_backend = hb.ServiceBackend(
         billing_project=os.getenv('HAIL_BILLING_PROJECT'),
-        bucket=os.getenv('HAIL_BUCKET'),
+        bucket=gcp_bucket.replace('gs://', ''),
     )
 
     # create a hail batch
