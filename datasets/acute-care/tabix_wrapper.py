@@ -44,12 +44,12 @@ def main(file: str):
     job.memory('standard')  # ~ 4G/core ~ 7.5G
     job.storage('20G')
     job.declare_resource_group(
-        vcf={'vcf': '{root}.vcf.gz', 'index': '{root}.vcf.gz.tbi'}
+        vcf={'vcf.bgz': '{root}.vcf.bgz', 'vcf.bgz.tbi': '{root}.vcf.bgz.tbi'}
     )
     in_temp = batch.read_input(file)
     job.command(f'cat {in_temp} > {job.vcf.vcf}')
     job.command(f'tabix {job.vcf.vcf}')
-    batch.write_output(job.vcf, os.path.join(os.getenv('HAIL_BUCKET', ''), 'tabix'))
+    batch.write_output(job.vcf, os.path.join('gs://cpg-acute-care-test', 'A1131007_trio'))
     job.image(BCFTOOLS_IMAGE)
 
     batch.run(wait=False)
