@@ -12,8 +12,6 @@ import hailtop.batch as hb
 
 import click
 
-from analysis_runner import dataproc
-
 
 AR_REPO = 'australia-southeast1-docker.pkg.dev/cpg-common/images'
 BCFTOOLS_IMAGE = f'{AR_REPO}/bcftools:1.10.2--h4f4756c_2'
@@ -41,16 +39,9 @@ def main(file: str):
         backend=service_backend
     )
 
-    my_job = dataproc.hail_dataproc_job(
-        batch=batch,
-        script=f'tabix {file}',
-        max_age='1h',
-        job_name='run_tabix',
-        num_secondary_workers=1,
-        cluster_name='run_tabix with max-age=1h',
-    )  # noqa: F841
-
-    my_job.image(BCFTOOLS_IMAGE)
+    job = batch.new_job(name='run tabix')
+    job.command(f'tabix {file}')
+    job.image(BCFTOOLS_IMAGE)
 
     batch.run(wait=False)
 
