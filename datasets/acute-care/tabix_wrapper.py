@@ -47,9 +47,9 @@ def main(file: str):
         vcf={'vcf.bgz': '{root}.vcf.bgz', 'vcf.bgz.tbi': '{root}.vcf.bgz.tbi'}
     )
     in_temp = batch.read_input(file)
-    job.command(f'cat {in_temp} > {job.vcf.vcf}')
-    job.command(f'tabix {job.vcf.vcf}')
-    batch.write_output(job.vcf, os.path.join('gs://cpg-acute-care-test', 'A1131007_trio'))
+    job.command(f'cat {in_temp} > {job.vcf.vcf.bgz}')
+    job.command(f'tabix {job.vcf.vcf.bgz}')
+    batch.write_output(job.vcf, os.path.join(os.path.dirname(file), 'A1131007_trio'))
     job.image(BCFTOOLS_IMAGE)
 
     batch.run(wait=False)
