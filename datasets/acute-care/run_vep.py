@@ -1,7 +1,10 @@
+#!/usr/bin/env python3
+
 """
 create a dataproc cluster, and try to use VEP within that
 - not using Hail
 """
+
 
 import os
 import hailtop.batch as hb
