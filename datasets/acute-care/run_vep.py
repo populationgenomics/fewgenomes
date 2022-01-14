@@ -20,19 +20,22 @@ import click
     'file',
     help='file to annotate'
 )
-def main(file: str):
+@click.option(
+    '--script',
+    'script',
+    help='path to vep bash script'
+)
+def main(file: str, script: str):
     """
     takes a given file argument,
 
     :param file: str, the GCP path for a given input file
+    :param script: str, the path to the VEP script
     """
     dirname, filename = os.path.split(file)
     new_vcf_path = os.path.join(dirname, f'anno_{filename}')
 
-    vep_cmd = f'/vep --format vcf -i {file} ' \
-              '--everything --allele_number --no_stats ' \
-              '--cache --offline --minimal ' \
-              f'--assembly GRCh38 --vcf -o {new_vcf_path}'
+    vep_cmd = f'{script} {file} {new_vcf_path}'
 
     service_backend = hb.ServiceBackend(
         billing_project=os.getenv('HAIL_BILLING_PROJECT'),
