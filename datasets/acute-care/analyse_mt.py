@@ -39,6 +39,7 @@ def main(matrix: str, conf: str, reference: str):
     logging.info('Config path: %s', conf)
     annotated_mt = hl.read_matrix_table(matrix)
     print(annotated_mt.col.describe())
+    print(annotated_mt.describe())
 
 
 if __name__ == '__main__':
