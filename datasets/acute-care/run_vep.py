@@ -35,7 +35,7 @@ def main(file: str, script: str):
     dirname, filename = os.path.split(file)
     new_vcf_path = os.path.join(dirname, f'anno_{filename}')
 
-    vep_cmd = f'{script} {file} {new_vcf_path}'
+    vep_cmd = f'{script} --infile {file} --outfile {new_vcf_path}'
 
     service_backend = hb.ServiceBackend(
         billing_project=os.getenv('HAIL_BILLING_PROJECT'),
@@ -48,7 +48,7 @@ def main(file: str, script: str):
         backend=service_backend
     )
 
-    _job = dataproc.hail_dataproc_job(
+    job = dataproc.hail_dataproc_job(
         batch=batch,
         script=vep_cmd,
         max_age='4h',
@@ -57,6 +57,9 @@ def main(file: str, script: str):
         cluster_name='annotate_vcf with max-age=4h',
         vep='GRCh38'
     )  # noqa: F841
+    job.cpu(2)
+    job.memory('standard')  # ~ 4G/core ~ 7.5G
+    job.storage('20G')
 
     batch.run(wait=False)
 
