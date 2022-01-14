@@ -10,6 +10,7 @@ import subprocess
 import click
 
 
+@click.command()
 @click.option(
     '--infile',
     'infile',
