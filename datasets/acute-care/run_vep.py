@@ -59,3 +59,7 @@ def main(file: str, script: str):
     )  # noqa: F841
 
     batch.run(wait=False)
+
+
+if __name__ == '__main__':
+    main()  # pylint: disable=E1120
