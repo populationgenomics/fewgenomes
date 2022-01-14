@@ -18,7 +18,7 @@ import click
 @click.option(
     '--script',
     'script',
-    help='path to vep bash script'
+    help='path to vep python script'
 )
 def main(script: str):
     """
