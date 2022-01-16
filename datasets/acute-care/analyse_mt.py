@@ -47,13 +47,14 @@ def remove_non_genic_variants(
 
     # if we specified some gene IDs, only keep those variants
     if len(keep_genes) > 0:
+        keep_genes = hl.literal(keep_genes)
         filtered_matrix = matrix.filter_rows(
-            len(matrix.geneIds.intersection(keep_genes)) > 0
+            hl.len(matrix.geneIds & keep_genes) > 0
         )
     # otherwise only keep rows relating to any gene ID
     else:
         filtered_matrix = matrix.filter_rows(
-            len(matrix.geneIds) > 0
+            hl.len(matrix.geneIds) > 0
         )
 
     logging.info('Number of variants prior to filtering: %d', filtered_matrix.count_rows())
