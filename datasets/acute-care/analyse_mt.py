@@ -36,12 +36,15 @@ def remove_non_genic_variants(
 ) -> hl.MatrixTable:
     """
     either remove all variants without gene annotations
+    experimenting with set expressions here
+    https://hail.is/docs/0.2/hail.expr.SetExpression.html
     :param matrix: hl.MatrixTable
     :param keep_genes: Optional[set]
     """
 
     logging.info('Number of variants prior to filtering: %d', matrix.count_rows())
 
+    # the input genes are optional, but can't be a mutable default
     if keep_genes is None:
         keep_genes = set()
 
@@ -91,9 +94,12 @@ def main(matrix: str, conf: str, reference: str):
     logging.info('Config path: %s', conf)
     annotated_mt = go_and_get_mt(mt_path=matrix)
 
-    remove_non_genic_variants(matrix=annotated_mt)
+    # very basic pre-filtering, this process will ignore intergenic regions
+    # note, this is not the same as coding-only
+    # any variant with any relation to a genic annotation retained
+    remove_non_genic_variants(matrix=annotated_mt, keep_genes={'ENSG00000012048'})
 
-    print(annotated_mt.describe())
+    # print(annotated_mt.describe())
 
 
 if __name__ == '__main__':
