@@ -7,3 +7,4 @@ work
 .snakemake
 .DS_Store
 playground
+.pytest_cache
