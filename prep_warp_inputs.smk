@@ -65,30 +65,24 @@ INPUT_TYPES_TO_WORKFLOW_NAME = {
    'exome_bam': 'ExomeFromBam',
    'gvcf': 'PrepareGvcfsWf',
 }
-INPUT_TYPE = config.get('input_type')
-assert INPUT_TYPE in INPUT_TYPES_TO_FOLDER_NAME
+INPUT_TYPES = config.get('input_type', '').split(',')
+assert all(it in INPUT_TYPES_TO_FOLDER_NAME for it in INPUT_TYPES)
 
 assert 'dataset_name' in config, \
     'Specify dataset_name with snakemake --config dataset_name=NAME'
 DATASET = config['dataset_name']
 
+ANCESTRY = config.get('ancestry')
+
 # Base bucket to copy files to
 COPY_LOCALY_BUCKET = 'gs://cpg-fewgenomes-main'
 
-OUT_SAMPLE_MAP_TSV = os.path.join(DATASETS_DIR, DATASET, f'{DATASET}-{INPUT_TYPE}-local.tsv')
+OUT_SAMPLE_MAP_TSV = os.path.join(DATASETS_DIR, DATASET, f'{DATASET}-{"-".join(INPUT_TYPES)}-local.tsv')
 
 
-if INPUT_TYPE == 'gvcf':
-    rule all:
-        input:
-            OUT_SAMPLE_MAP_TSV
-else:
-    rule all:
-        input:
-            singlesample_warp_inputs = \
-                dynamic(os.path.join(DATASETS_DIR, DATASET, INPUT_TYPE, '{sample}-warp.json')),
-            multisample_warp_input = \
-                os.path.join(DATASETS_DIR, DATASET, f'{DATASET}-warp-{INPUT_TYPE}.json')
+rule all:
+    input:
+        OUT_SAMPLE_MAP_TSV
 
 def get_warp_input_json_url(wfl_name):
     return (
@@ -146,9 +140,9 @@ rule gs_ls_to_table:
                 if line.startswith(params.gs_data_base_url) and line.endswith('/'):
                     # .../data/HG00096/exome_alignment/
                     components = line.split('/')
-                    INPUT_TYPE = components[-2]
+                    it = components[-2]
                     sample = components[-3]
-                    input_types_by_sample[sample].append(INPUT_TYPE)
+                    input_types_by_sample[sample].append(it)
         with open(input.gvcf_ls_output) as ls_inp:
             for line in ls_inp:
                 line = line.strip()
@@ -206,14 +200,16 @@ rule select_samples_or_families:
         ped = rules.overlap_with_available_data.output.ped
     output:
         ped = os.path.join(DATASETS_DIR, DATASET, 'samples.ped')
-    params:
-        input_type = INPUT_TYPE
     run:
         df = pd.read_csv(input.ped, sep='\t')
-        if INPUT_TYPE in ['wgs_bam_highcov']:
+        if set(INPUT_TYPES) & {'wgs_bam_highcov'}:
             df = df[~df['gatksv_cram'].isnull() | df['high_coverage_alignment']]
-        elif INPUT_TYPE in ['wgs_bam', 'exome_bam', 'gvcf']:
-            df = df[df[INPUT_TYPES_TO_FOLDER_NAME[INPUT_TYPE]]]
+        other_its = [it for it in INPUT_TYPES if it in ['wgs_bam', 'exome_bam', 'gvcf']]
+        for it in other_its:
+            df = df[df[INPUT_TYPES_TO_FOLDER_NAME[it]]]
+        
+        if ANCESTRY:
+            df = df[df['Population'] == ANCESTRY]
 
         if SAMPLE_N:
             print(f'Selecting {SAMPLE_N} samples')
@@ -276,7 +272,7 @@ rule make_sample_map:
     input:
         ped = rules.select_samples_or_families.output.ped
     output:
-        sample_map = os.path.join(DATASETS_DIR, DATASET, f'{DATASET}-{INPUT_TYPE}.tsv'),
+        sample_map = os.path.join(DATASETS_DIR, DATASET, f'{DATASET}-{"-".join(INPUT_TYPES)}.tsv'),
     params:
         gs_data_bucket = GS_1GK_DATA_BUCKET,
         gvcf_bucket_ptrns = GVCF_1KG_BUCKET_PATTERNS,
@@ -284,22 +280,24 @@ rule make_sample_map:
         print(f'Finding inputs and generating WARP input files...')
         df = pd.read_csv(input.ped, sep='\t')
         
-        input_files_by_sample = dict()
+        input_files_by_sample = defaultdict(list)
         for (_, row), _ in zip(df.iterrows(), progressbar.progressbar(range(len(df)))):
             sample = row['Individual.ID']
 
-            if INPUT_TYPE in ['exome_bam', 'wgs_bam', 'wgs_bam_highcov']:
-                if row[INPUT_TYPES_TO_FOLDER_NAME[INPUT_TYPE]]:
+            its = [it for it in INPUT_TYPES if it in ['exome_bam', 'wgs_bam', 'wgs_bam_highcov']]
+            for it in its:
+                if row[INPUT_TYPES_TO_FOLDER_NAME[it]]:
                     print(f'Finding BAMs for {sample}')
                     cmd = f'gsutil -u fewgenomes ls "{params.gs_data_bucket}/{sample}/' \
-                          f'{INPUT_TYPES_TO_FOLDER_NAME[INPUT_TYPE]}/{sample}.*.bam"'
+                          f'{INPUT_TYPES_TO_FOLDER_NAME[it]}/{sample}.*.bam"'
                     bam_fpaths = subprocess.check_output(cmd, shell=True).decode().split('\n')
                     bam_fpath = bam_fpaths[0]
-                    input_files_by_sample[sample] = bam_fpath
+                    input_files_by_sample[sample].append(bam_fpath)
                 if row['gatksv_cram'] and isinstance(row['gatksv_cram'], str):
-                    input_files_by_sample[sample] = row['gatksv_cram']
+                    input_files_by_sample[sample].append(row['gatksv_cram'])
 
-            elif INPUT_TYPE in ['wgs_fastq']:
+            its = [it for it in INPUT_TYPES if it == 'wgs_fastq']
+            for it in its:
                 print(f'Finding fastqs for {sample}')
                 cmd = f'gsutil -u fewgenomes ls "{params.gs_data_bucket}/{sample}/' \
                       f'sequence_read/*_*.filt.fastq.gz"'
@@ -311,9 +309,10 @@ rule make_sample_map:
                 fastq_pairs = list(zip(r1_fpaths, r2_fpaths))
                 input_files_by_sample[sample] = \
                     ','.join(['|'.join(fp) for fp in fastq_pairs])
-                
-            elif INPUT_TYPE in ['gvcf']:
-                if row[INPUT_TYPES_TO_FOLDER_NAME[INPUT_TYPE]]:
+
+            its = [it for it in INPUT_TYPES if it == 'gvcf']
+            for it in its:
+                if row[INPUT_TYPES_TO_FOLDER_NAME[it]]:
                     print(f'Finding GVCFs for {sample}')
                     for ptn in params.gvcf_bucket_ptrns:
                         path = ptn.replace('*', sample)
@@ -354,66 +353,3 @@ if COPY_LOCALY_BUCKET:
                     out.write('\t'.join([sample, target_path]) + '\n')
 
     sample_map = rules.copy_gvcf.output.sample_map
-
-rule make_multisample_warp_input:
-    input:
-        sample_map = rules.make_sample_map.output.sample_map,
-    output:
-        os.path.join(DATASETS_DIR, DATASET, f'{DATASET}-warp-{INPUT_TYPE}.json')
-    params:
-        wfl_name = INPUT_TYPES_TO_WORKFLOW_NAME.get(INPUT_TYPE),
-    run:
-        multi_wfl_name = params.wfl_name.replace('From', 'MultipleSamplesFrom')
-        wfl_tmpl_url = get_warp_input_json_url(multi_wfl_name)
-        wfl_tmpl_path = 'work/warp-input-multi.json'
-        shell(f'wget {wfl_tmpl_url} -O {wfl_tmpl_path}')
-        
-        with open(wfl_tmpl_path) as fh:
-            data = json.load(fh)
-            data[f'{multi_wfl_name}.sample_map'] = os.path.abspath(input.sample_map)
-        with open(output[0], 'w') as out:
-            json.dump(data, out, indent=4)
-
-rule make_singlesample_warp_inputs:
-    input:
-        sample_map = rules.make_sample_map.output.sample_map,
-    output:
-        dynamic(os.path.join(DATASETS_DIR, DATASET, INPUT_TYPE, '{sample}-warp.json')),
-    params:
-        dataset_dir = os.path.join(DATASETS_DIR, DATASET),
-        input_type = INPUT_TYPE,
-        wfl_name = INPUT_TYPES_TO_WORKFLOW_NAME.get(INPUT_TYPE)
-    run:
-        print(f'Finding inputs and generating WARP input files...')
-        wfl_tmpl_url = get_warp_input_json_url(params.wfl_name)
-        wfl_tmpl_path = 'work/warp-input.json'
-        shell(f'wget {wfl_tmpl_url} -O {wfl_tmpl_path}')
-        with open(wfl_tmpl_path) as fh:
-            data_tmpl = json.load(fh)
-
-        with open(input.sample_map) as fh:
-            for line in fh:
-                sample, input_files = line.strip().split()
-                
-                data = data_tmpl.copy()
-
-                if INPUT_TYPE in ['exome_bam', 'wgs_bam', 'wgs_bam_highcov']:
-                    bam_fpath = input_files
-                    data[f'{params.wfl_name}.sample_name'] = sample
-                    data[f'{params.wfl_name}.base_file_name'] = sample
-                    data[f'{params.wfl_name}.final_gvcf_base_name'] = sample
-                    data[f'{params.wfl_name}.input_bam'] = bam_fpath
-    
-                elif INPUT_TYPE in ['wgs_fastq']:
-                    fastq_pairs = [fp.split('|') for fp in input_files.split(',')]
-    
-                    data['WGSFromFastq.sample_and_fastqs'] = dict(
-                        sample_name=sample,
-                        base_file_name=sample,
-                        final_gvcf_base_name=sample,
-                        fastqs=fastq_pairs,
-                    )
-    
-                json_fpath = os.path.join(params.dataset_dir, INPUT_TYPE, f'{sample}-warp.json')
-                with open(json_fpath, 'w') as out:
-                    json.dump(data, out, indent=4)
