@@ -12,11 +12,24 @@ A threshold
 Filter syntax example
 mt = mt.filter_rows(dataset.variant_qc.AF[1] < 0.01, keep=True)
 """
-import json
+
 import logging
 from typing import Optional
 import hail as hl
 import click
+
+
+# first attempt to use a config failed, not packaged in repo?
+config_dict = {
+  'missense': {
+    'cadd': 28.0,
+    'revel': '0.4'
+  },
+  'af': {
+    'exac': 0.001,
+    'gnomad_genomes': 0.001
+  }
+}
 
 
 def go_and_get_mt(mt_path: str) -> hl.MatrixTable:
@@ -129,8 +142,9 @@ def main(matrix: str, conf: str, reference: str):
     hl.init(default_reference=reference)
 
     logging.info('Config path: %s', conf)
-    with open(conf, 'rt', encoding='utf-8') as read_handle:
-        config = json.load(read_handle)
+    # using hard coded conf dict for now
+    # with open(conf, 'rt', encoding='utf-8') as read_handle:
+    #     config = json.load(read_handle)
 
     annotated_mt = go_and_get_mt(mt_path=matrix)
 
@@ -150,12 +164,12 @@ def main(matrix: str, conf: str, reference: str):
     # print(annotated_mt.describe())
 
     # find all rare variation
-    annotated_mt = find_rare_variants(matrix=annotated_mt, config=config)
+    annotated_mt = find_rare_variants(matrix=annotated_mt, config=config_dict)
 
     logging.info('# variants after rare filter: %d', annotated_mt.count_rows())
 
     # find high impact missense
-    annotated_mt = find_high_impact_missense(matrix=annotated_mt, config=config)
+    annotated_mt = find_high_impact_missense(matrix=annotated_mt, config=config_dict)
 
     logging.info('# variants after missense filter: %d', annotated_mt.count_rows())
 

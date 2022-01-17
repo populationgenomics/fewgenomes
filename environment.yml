@@ -2,9 +2,10 @@ name: fewgenomes
 
 dependencies:
   - analysis-runner
-  - snakemake-minimal
-  - pandas
   - google-cloud-sdk
   - google-cloud-storage
-  - progressbar2
+  - gnomad==0.6.1
   - hail
+  - pandas
+  - progressbar2
+  - snakemake-minimal
