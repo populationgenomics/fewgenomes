@@ -71,10 +71,10 @@ def _move_locally(gvcf_by_sample, dataset, picard_file_by_sname_by_key):
     local_picard_file_by_sname_by_key = defaultdict(dict)
     for sample, gvcf_path in gvcf_by_sample.items():
         local_path = f'gs://cpg-fewgenomes-upload/{sample}/gvcf/{basename(gvcf_path)}'
-        if not file_exists(local_path):
-            run_cmd(f'gsutil cp {gvcf_path} {local_path}')
-        if not file_exists(local_path + '.tbi'):
-            run_cmd(f'gsutil cp {gvcf_path}.tbi {local_path}.tbi')
+        # if not file_exists(local_path):
+        run_cmd(f'gsutil cp {gvcf_path} {local_path}')
+        # if not file_exists(local_path + '.tbi'):
+        run_cmd(f'gsutil cp {gvcf_path}.tbi {local_path}.tbi')
         local_gvcf_by_sample[sample] = local_path
 
         for picard_key, picard_path_by_sname in picard_file_by_sname_by_key.items():

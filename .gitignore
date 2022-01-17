@@ -1,7 +1,10 @@
 .idea/
 ~*
 resources/G1K_sample_info.xlsx
+resources/gs-gvcfs.txt
+resources/gs-phase3-data-ls.txt
 work
 .snakemake
 .DS_Store
+playground
 .pytest_cache
