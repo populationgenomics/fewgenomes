@@ -12,8 +12,7 @@ A threshold
 Filter syntax example
 mt = mt.filter_rows(dataset.variant_qc.AF[1] < 0.01, keep=True)
 """
-
-
+import json
 import logging
 from typing import Optional
 import hail as hl
@@ -38,11 +37,11 @@ def remove_non_genic_variants(
     either remove all variants without gene annotations
     experimenting with set expressions here
     https://hail.is/docs/0.2/hail.expr.SetExpression.html
+
+    example use case - query PanelApp for genes on a panel
     :param matrix: hl.MatrixTable
     :param keep_genes: Optional[set]
     """
-
-    logging.info('Number of variants prior to filtering: %d', matrix.count_rows())
 
     # the input genes are optional, but can't be a mutable default
     if keep_genes is None:
@@ -60,8 +59,46 @@ def remove_non_genic_variants(
             hl.len(matrix.geneIds) > 0
         )
 
-    logging.info('Number of variants prior to filtering: %d', filtered_matrix.count_rows())
+    logging.info('Variants retained after filtering: %d', filtered_matrix.count_rows())
     return filtered_matrix
+
+
+def find_high_impact_missense(matrix: hl.MatrixTable, config: dict) -> hl.MatrixTable:
+    """
+    CADD = row.cadd.PHRED (float)
+    revel = row.dbnsfp.REVEL_score (str) - this will work, but should be cast really
+    :param matrix: pass a MT to be row-filtered
+    :param config: dict of filtering parameters
+
+    e.g. filtered_matrix = mt.filter_rows((mt.info.AN > 5000) | (mt.info.AN < 4500))
+    """
+
+    high_in_silico = matrix.filter_rows(
+        (matrix.cadd.PHRED >= config['missense']['cadd']) |
+        (matrix.dbnsfp.REVEL_score >= config['missense']['revel'])
+    )
+
+    return high_in_silico
+
+
+def find_rare_variants(matrix: hl.MatrixTable, config: dict) -> hl.MatrixTable:
+    """
+    finds rare variants in the supplied populations
+
+    gnomad = row.gnomad_genomes.AF (float)
+    exac = row.exac.AF (float)
+    :param matrix: pass a MT to be row-filtered
+    :param config: dict of filtering parameters
+
+    e.g. filtered_matrix = mt.filter_rows((mt.info.AN > 5000) | (mt.info.AN < 4500))
+    """
+
+    rare = matrix.filter_rows(
+        (matrix.gnomad_genomes.AF >= config['af']['gnomad_genomes']) |
+        (matrix.exac.AF >= config['af']['exac'])
+    )
+
+    return rare
 
 
 @click.command()
@@ -92,14 +129,37 @@ def main(matrix: str, conf: str, reference: str):
     hl.init(default_reference=reference)
 
     logging.info('Config path: %s', conf)
+    with open(conf, 'rt', encoding='utf-8') as read_handle:
+        config = json.load(read_handle)
+
     annotated_mt = go_and_get_mt(mt_path=matrix)
+
+    logging.info('# variants before filters: %d', annotated_mt.count_rows())
 
     # very basic pre-filtering, this process will ignore intergenic regions
     # note, this is not the same as coding-only
     # any variant with any relation to a genic annotation retained
-    remove_non_genic_variants(matrix=annotated_mt, keep_genes={'ENSG00000012048'})
+    # remove_non_genic_variants(
+    #   matrix=annotated_mt,
+    #   keep_genes={'ENSG00000012048'}
+    # )  # example with one gene ID (working)
+    annotated_mt = remove_non_genic_variants(matrix=annotated_mt)
+
+    logging.info('# variants after gene filter: %d', annotated_mt.count_rows())
 
     # print(annotated_mt.describe())
+
+    # find all rare variation
+    annotated_mt = find_rare_variants(matrix=annotated_mt, config=config)
+
+    logging.info('# variants after rare filter: %d', annotated_mt.count_rows())
+
+    # find high impact missense
+    annotated_mt = find_high_impact_missense(matrix=annotated_mt, config=config)
+
+    logging.info('# variants after missense filter: %d', annotated_mt.count_rows())
+
+    # annotated_mt.describe()
 
 
 if __name__ == '__main__':
