@@ -14,7 +14,9 @@ mt = mt.filter_rows(dataset.variant_qc.AF[1] < 0.01, keep=True)
 """
 
 import logging
-from typing import Optional
+from typing import Dict, Optional, Union
+from gnomad.utils.vep import vep_struct_to_csq
+
 import hail as hl
 import click
 
@@ -32,6 +34,31 @@ config_dict = {
 }
 
 
+def make_info_expr(hail_object: Union[hl.MatrixTable, hl.Table]) -> Dict[str, hl.expr.Expression]:
+    """
+    Make Hail expression for variant annotations to be included in VCF INFO field.
+    :param hail_object: Table/MatrixTable w/annotations to be reformatted for VCF export.
+    :return: Dictionary containing Hail expressions for relevant INFO annotations.
+    :rtype: Dict[str, hl.expr.Expression]
+    """
+    vcf_info_dict = {
+        'cadd_phred': hail_object['cadd']['PHRED'],
+        'splice_ai_max_ds': hail_object['splice_ai']['delta_score'],
+        'splice_ai_consequence': hail_object['splice_ai']['splice_consequence']
+    }
+
+    # Add in silico annotations to info dict; dbnsfp all taken
+    for field, expression in hail_object['dbnsfp'].items():
+        vcf_info_dict[f'{field.split()[0]}_score'] = expression
+
+    # get AF sections
+    for resource in ['gnomad_genomes', 'gnomad_exomes', 'exac']:
+        for field, value in hail_object[resource].items():
+            vcf_info_dict[f'{resource}_{field}'] = value
+
+    return vcf_info_dict
+
+
 def go_and_get_mt(mt_path: str) -> hl.MatrixTable:
     """
     Reads in the stored MatrixTable from disk
@@ -40,6 +67,29 @@ def go_and_get_mt(mt_path: str) -> hl.MatrixTable:
 
     annotated_mt = hl.read_matrix_table(mt_path)
     return annotated_mt
+
+
+def export_annotated_vcf(matrix: hl.MatrixTable, path: str):
+    """
+    takes the MT provided, bundles the annotations into info, writes to file
+    :param matrix: the MT representing all variant data
+    :param path: the path to write out the VCF
+    """
+    logging.info('Reformatting VEP annotation...')
+    # this flattens the possible multiple-consequence-per-entry into separate sections
+    vep_expr = vep_struct_to_csq(matrix.vep)
+
+    logging.info('Updating INFO field')
+    info_expression = make_info_expr(matrix.rows())
+    matrix = matrix.annotate_rows(
+        info=matrix.annotate(
+            **info_expression,
+            vep=vep_expr
+        )
+    )
+
+    # export directly to a test bucket path
+    hl.export_vcf(matrix, path, tabix=True)
 
 
 def remove_non_genic_variants(
@@ -174,6 +224,8 @@ def main(matrix: str, conf: str, reference: str):
     logging.info('# variants after missense filter: %d', annotated_mt.count_rows())
 
     # annotated_mt.describe()
+    # try and dump it out
+    export_annotated_vcf(annotated_mt, path='gs://cpg-acute-care-test/annotated_subset.vcf.bgz')
 
 
 if __name__ == '__main__':
