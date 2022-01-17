@@ -75,7 +75,7 @@ DATASET = config['dataset_name']
 ANCESTRY = config.get('ancestry')
 
 # Base bucket to copy files to
-COPY_LOCALY_BUCKET = 'gs://cpg-fewgenomes-main'
+COPY_LOCALLY_BUCKET = 'gs://cpg-fewgenomes-main'
 
 OUT_SAMPLE_MAP_TSV = os.path.join(DATASETS_DIR, DATASET, f'{DATASET}-{"-".join(INPUT_TYPES)}-local.tsv')
 
@@ -332,14 +332,14 @@ rule make_sample_map:
 
 sample_map = rules.make_sample_map.output.sample_map
 
-if COPY_LOCALY_BUCKET:
+if COPY_LOCALLY_BUCKET:
     rule copy_gvcf:
         input:
             sample_map = rules.make_sample_map.output.sample_map,
         output:
             sample_map = OUT_SAMPLE_MAP_TSV,
         params:
-            bucket = COPY_LOCALY_BUCKET,
+            bucket = COPY_LOCALLY_BUCKET,
             dataset = DATASET,
         run:
             with open(input.sample_map) as f,\
