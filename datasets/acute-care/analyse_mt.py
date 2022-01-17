@@ -96,25 +96,25 @@ def vep_struct_to_csq(
         if feat_type == 'Transcript':
             fields.update(
                 {
-                    'canonical': hl.cond(element.canonical == 1, 'YES', ''),
+                    'canonical': hl.if_else(element.canonical == 1, 'YES', ''),
                     'ensp': element.protein_id,
                     'gene': element.gene_id,
                     'symbol': element.gene_symbol,
                     'symbol_source': element.gene_symbol_source,
                     'cdna_position': hl.str(element.cdna_start)
-                    + hl.cond(
+                    + hl.if_else(
                         element.cdna_start == element.cdna_end,
                         '',
                         '-' + hl.str(element.cdna_end),
                     ),
                     'cds_position': hl.str(element.cds_start)
-                    + hl.cond(
+                    + hl.if_else(
                         element.cds_start == element.cds_end,
                         '',
                         '-' + hl.str(element.cds_end),
                     ),
                     'protein_position': hl.str(element.protein_start)
-                    + hl.cond(
+                    + hl.if_else(
                         element.protein_start == element.protein_end,
                         '',
                         '-' + hl.str(element.protein_end),
@@ -259,6 +259,8 @@ def find_high_impact_missense(matrix: hl.MatrixTable, config: dict) -> hl.Matrix
 
     e.g. filtered_matrix = mt.filter_rows((mt.info.AN > 5000) | (mt.info.AN < 4500))
     """
+
+    # we probably want some consequence terms in here
 
     high_in_silico = matrix.filter_rows(
         (matrix.cadd.PHRED >= config['missense']['cadd']) |
