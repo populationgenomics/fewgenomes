@@ -1,7 +1,9 @@
+import argparse
+from tkinter import N
 import hailtop.batch as hb
 
 
-def main():
+def main(args):
     examples = [
         hello_world,
         two_jobs,
@@ -12,17 +14,23 @@ def main():
         nested_scatter,
     ]
 
+    if args.list:
+        help(examples)
+        return
+
+    n = args.example - 1
+    try:
+        examples[n]()
+    except:
+        help(examples)
+
+
+def help(examples):
     print(f'What example do you want to run?')
     for i, x in enumerate(examples):
         print(f'{i+1}) {x.__name__}')
 
-    n = int(input(f'[1-{len(examples)}]: ')) - 1
-    print()
-
-    try:
-        examples[n]()
-    finally:
-        return
+    print(f'Provide a number [1-{len(examples)}] as an argument to run')
 
 
 def hello_world():
@@ -102,4 +110,21 @@ def nested_scatter():
 
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser(
+        description='Run simple hail batch examples'
+    )
+    parser.add_argument(
+        '--example',
+        metavar='N',
+        type=int,
+        help='example number that you want to run',
+    )
+    parser.add_argument(
+        '--list',
+        action='store_true',
+        default=False,
+        help='List all possible examples',
+    )
+
+    args = parser.parse_args()
+    main(args)
