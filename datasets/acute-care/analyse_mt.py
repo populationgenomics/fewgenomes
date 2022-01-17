@@ -152,8 +152,8 @@ def vep_struct_to_csq(
                     lambda x: get_csq_from_struct(x, feature_type)
                 ),
                 hl.empty_array(hl.tstr),
-            )
-        )  # pylint: disable=W0460
+            )  # pylint: disable=W0460
+        )
 
     return hl.or_missing(hl.len(csq) > 0, csq)
 
@@ -206,7 +206,7 @@ def export_annotated_vcf(matrix: hl.MatrixTable, path: str):
     logging.info('Updating INFO field')
     info_expression = make_info_expr(matrix.rows())
     matrix = matrix.annotate_rows(
-        info=matrix.annotate(
+        info=matrix.info.annotate(
             **info_expression,
             vep=vep_expr
         )
