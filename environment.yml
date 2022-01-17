@@ -4,7 +4,6 @@ dependencies:
   - analysis-runner
   - google-cloud-sdk
   - google-cloud-storage
-  - gnomad
   - hail
   - pandas
   - progressbar2
