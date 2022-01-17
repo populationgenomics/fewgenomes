@@ -15,11 +15,18 @@ mt = mt.filter_rows(dataset.variant_qc.AF[1] < 0.01, keep=True)
 
 import logging
 from typing import Dict, Optional, Union
-from gnomad.utils.vep import vep_struct_to_csq
-
 import hail as hl
 import click
 
+
+VEP_CSQ_FIELDS = 'Allele|Consequence|IMPACT|SYMBOL|Gene|Feature_type|' \
+                 'Feature|BIOTYPE|EXON|INTRON|HGVSc|HGVSp|cDNA_position|' \
+                 'CDS_position|Protein_position|Amino_acids|Codons|' \
+                 'ALLELE_NUM|DISTANCE|STRAND|VARIANT_CLASS|MINIMISED|' \
+                 'SYMBOL_SOURCE|HGNC_ID|CANONICAL|TSL|APPRIS|CCDS|ENSP|' \
+                 'SWISSPROT|TREMBL|UNIPARC|GENE_PHENO|SIFT|PolyPhen|' \
+                 'DOMAINS|HGVS_OFFSET|MOTIF_NAME|MOTIF_POS|HIGH_INF_POS|' \
+                 'MOTIF_SCORE_CHANGE|LoF|LoF_filter|LoF_flags|LoF_info'
 
 # first attempt to use a config failed, not packaged in repo?
 config_dict = {
@@ -32,6 +39,123 @@ config_dict = {
     'gnomad_genomes': 0.001
   }
 }
+
+
+def vep_struct_to_csq(
+    vep_expr: hl.expr.StructExpression, csq_fields: str = VEP_CSQ_FIELDS
+) -> hl.expr.ArrayExpression:
+    """
+    Given a VEP Struct, returns and array of VEP VCF CSQ strings
+    (one per consequence in the struct).
+
+    The fields and their order will correspond to those passed in `csq_fields`,
+    which corresponds to the  VCF header that is required to interpret
+    the VCF CSQ INFO field.
+
+    Note that the order is flexible and that all fields that are in the default value are supported.
+    These fields will be formatted in the same way that their VEP CSQ counterparts are.
+
+    While other fields can be added if their name are the same as those in the struct.
+    Their value will be the result of calling hl.str(), so it may differ from their
+    usual VEP CSQ representation.
+
+    :param vep_expr: The input VEP Struct
+    :param csq_fields: The | delimited list of fields to include in the CSQ (in that order)
+    :return: The corresponding CSQ strings
+    """
+
+    _csq_fields = [f.lower() for f in csq_fields.split('|')]
+
+    def get_csq_from_struct(
+        element: hl.expr.StructExpression,
+        feat_type: str
+    ) -> hl.expr.StringExpression:
+        # Most fields are 1-1, just lowercase
+        fields = dict(element)
+
+        # Add general exceptions
+        fields.update(
+            {
+                'allele': element.variant_allele,
+                'consequence': hl.delimit(element.consequence_terms, delimiter='&'),
+                'feature_type': feat_type,
+                'feature': (
+                    element.transcript_id
+                    if 'transcript_id' in element
+                    else element.regulatory_feature_id
+                    if 'regulatory_feature_id' in element
+                    else element.motif_feature_id
+                    if 'motif_feature_id' in element
+                    else ''
+                ),
+                'variant_class': vep_expr.variant_class,
+            }
+        )
+
+        # Add exception for transcripts
+        if feat_type == 'Transcript':
+            fields.update(
+                {
+                    'canonical': hl.cond(element.canonical == 1, 'YES', ''),
+                    'ensp': element.protein_id,
+                    'gene': element.gene_id,
+                    'symbol': element.gene_symbol,
+                    'symbol_source': element.gene_symbol_source,
+                    'cdna_position': hl.str(element.cdna_start)
+                    + hl.cond(
+                        element.cdna_start == element.cdna_end,
+                        '',
+                        '-' + hl.str(element.cdna_end),
+                    ),
+                    'cds_position': hl.str(element.cds_start)
+                    + hl.cond(
+                        element.cds_start == element.cds_end,
+                        '',
+                        '-' + hl.str(element.cds_end),
+                    ),
+                    'protein_position': hl.str(element.protein_start)
+                    + hl.cond(
+                        element.protein_start == element.protein_end,
+                        '',
+                        '-' + hl.str(element.protein_end),
+                    ),
+                    'sift': element.sift_prediction
+                    + '('
+                    + hl.format('%.3f', element.sift_score)
+                    + ')',
+                    'polyphen': element.polyphen_prediction
+                    + '('
+                    + hl.format('%.3f', element.polyphen_score)
+                    + ')',
+                    'domains': hl.delimit(
+                        element.domains.map(lambda d: d.db + ':' + d.name), '&'
+                    ),
+                }
+            )
+        elif feat_type == 'MotifFeature':
+            fields['motif_score_change'] = hl.format('%.3f', element.motif_score_change)
+
+        return hl.delimit(
+            [hl.or_else(hl.str(fields.get(f, '')), '') for f in _csq_fields], '|'
+        )
+
+    csq = hl.empty_array(hl.tstr)
+    for feature_field, feature_type in [
+        ('transcript_consequences', 'Transcript'),
+        ('regulatory_feature_consequences', 'RegulatoryFeature'),
+        ('motif_feature_consequences', 'MotifFeature'),
+        ('intergenic_consequences', 'Intergenic'),
+    ]:
+        csq = csq.extend(
+            hl.or_else(
+                vep_expr[feature_field].map(
+                    lambda x: get_csq_from_struct(x, feature_type)
+                ),
+                hl.empty_array(hl.tstr),
+            )
+        )  # pylint: disable=W0460
+
+    return hl.or_missing(hl.len(csq) > 0, csq)
 
 
 def make_info_expr(hail_object: Union[hl.MatrixTable, hl.Table]) -> Dict[str, hl.expr.Expression]:
