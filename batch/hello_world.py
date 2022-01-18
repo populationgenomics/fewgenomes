@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import argparse
 from tkinter import N
 import hailtop.batch as hb
