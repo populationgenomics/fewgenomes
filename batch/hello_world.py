@@ -56,7 +56,6 @@ def two_jobs():
 
 
 def implicit_dependency():
-    print('')
     b = hb.Batch(name='hello-serial')
     s = b.new_job(name='j1')
     s.command(f'echo "hello world" > {s.ofile}')
