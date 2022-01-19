@@ -3,11 +3,14 @@
 
 """
 execute a subprocess call in python to run VEP annotation
+write the output to a location defined using output_path
 """
 
 
 import subprocess
 import click
+
+from analysis_runner import output_path
 
 
 @click.command()
@@ -16,22 +19,17 @@ import click
     'infile',
     help='file to annotate'
 )
-@click.option(
-    '--outfile',
-    'outfile',
-    help='file to produce'
-)
-def main(infile: str, outfile: str):
+def main(infile: str):
     """
     takes an input VCF, runs VEP on it, creates an output
+    THIS WILL NOT WORK, as VEP is installed but can't resolve the VCF path
     :param infile: str, the GCP path for a given input VCF
-    :param outfile: str, the path to the VEP annotated output VCF
     """
 
     complete_cmd_string = f'/vep --format vcf -i {infile} ' \
                           f'--everything --allele_number --no_stats ' \
                           f'--cache --offline --minimal --assembly ' \
-                          f'GRCh38 --vcf -o {outfile}'
+                          f'GRCh38 --vcf -o {output_path(path_suffix="annotated_with_vep.vcf.bgz")}'
 
     subprocess.check_output(complete_cmd_string.split())
 

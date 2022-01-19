@@ -32,10 +32,6 @@ def main(file: str, script: str):
     :param file: str, the GCP path for a given input file
     :param script: str, the path to the VEP script
     """
-    dirname, filename = os.path.split(file)
-    new_vcf_path = os.path.join(dirname, f'anno_{filename}')
-
-    vep_cmd = f'{script} --infile {file} --outfile {new_vcf_path}'
 
     service_backend = hb.ServiceBackend(
         billing_project=os.getenv('HAIL_BILLING_PROJECT'),
@@ -47,6 +43,10 @@ def main(file: str, script: str):
         name='run_vep_in_dataproc_cluster',
         backend=service_backend
     )
+
+    # read the input VCF into the batch
+    input_vcf = batch.read_input(file)
+    vep_cmd = f'{script} --infile {input_vcf}'
 
     job = dataproc.hail_dataproc_job(
         batch=batch,
