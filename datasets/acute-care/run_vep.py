@@ -68,7 +68,7 @@ def main(file: str, script: str):
     job_2.cpu(2)
     job_2.memory('standard')  # ~ 4G/core ~ 7.5G
     job_2.storage('20G')
-    job_1.write_output(job_1.ofile, new_vcf_path)
+    batch.write_output(job_1.ofile, new_vcf_path)
 
     batch.run(wait=False)
 
