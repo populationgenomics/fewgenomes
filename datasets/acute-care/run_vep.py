@@ -46,7 +46,7 @@ def main(file: str, script: str):
         backend=service_backend
     )
 
-    vep_cmd = f'{script} --infile {filename} --outfile {new_vcf_path}'
+    vep_cmd = f'{script} --infile {file} --outfile {new_vcf_path}'
 
     job = dataproc.hail_dataproc_job(
         batch=batch,
