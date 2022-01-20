@@ -46,17 +46,9 @@ def main(file: str, script: str):
         backend=service_backend
     )
 
-    # read into the batch
-    input_vcf = batch.read_input(file)
+    vep_cmd = f'{script} --infile {filename} --outfile {new_vcf_path}'
 
-    # try and trick batch
-    job_1 = batch.new_job(name='fake_job')
-
-    # create as a real file in the batch
-    job_1.command(f'touch {job_1.ofile}')
-    vep_cmd = f'{script} --infile {input_vcf} --outfile {job_1.ofile}'
-
-    job_2 = dataproc.hail_dataproc_job(
+    job = dataproc.hail_dataproc_job(
         batch=batch,
         script=vep_cmd,
         max_age='4h',
@@ -65,10 +57,9 @@ def main(file: str, script: str):
         cluster_name='annotate_vcf with max-age=4h',
         vep='GRCh38'
     )  # noqa: F841
-    job_2.cpu(2)
-    job_2.memory('standard')  # ~ 4G/core ~ 7.5G
-    job_2.storage('20G')
-    batch.write_output(job_1.ofile, new_vcf_path)
+    job.cpu(2)
+    job.memory('standard')  # ~ 4G/core ~ 7.5G
+    job.storage('20G')
 
     batch.run(wait=False)
 
