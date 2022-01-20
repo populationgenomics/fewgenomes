@@ -82,10 +82,9 @@ def obtain_unique_genes(gene_dict: Dict[Any, Dict[str, Optional[Any]]]) -> set:
     """
 
     panel_app_green = set(
-        map(lambda x: x['ensembl'],
-            [value for value in gene_dict.values() if value is not None]
-            )
+        map(lambda x: x['ensembl'], gene_dict.values())
     )
+    panel_app_green.discard(None)
     return panel_app_green
 
 
