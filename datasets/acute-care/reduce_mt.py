@@ -24,53 +24,47 @@ def go_and_get_mt(mt_path: str) -> hl.MatrixTable:
     return annotated_mt
 
 
-def get_panelapp_green(
+def get_panel_green(
         reference_genome: str,
-        panel_app_url: Optional[str] = 'https://panelapp.agha.umccr.org/api/v1'
+        panel_app_url: Optional[str] = 'https://panelapp.agha.umccr.org/api/v1/panels/',
+        panel_number: Optional[int] = 137
 ) -> Dict[Any, Dict[str, Optional[Any]]]:
     """
+    Takes a panel number, and pulls all details from PanelApp
+    :param reference_genome: GRch37 or GRch38
     :param panel_app_url: the root URL for the panelapp server
-    :param reference_genome: GRCh37 or 38
+    :param panel_number: defaults to the PanelAppAU Mendeliome
     :return:
     """
-
     gene_dict = {}
 
-    panel_app_genes_url = f'{panel_app_url}/genes/'
+    panel_app_genes_url = f'{panel_app_url}{panel_number}/'
 
-    # loop over all panelapp gene data
-    while True:
-        gene_response = requests.get(panel_app_genes_url)
-        gene_response.raise_for_status()
-        gene_data = gene_response.json()
+    panel_response = requests.get(panel_app_genes_url)
+    panel_response.raise_for_status()
+    panel_json = panel_response.json()
+    for gene in panel_json['genes']:
+        # or we could use 'Expert Review Green' in 'evidence'
+        if (
+                gene['confidence_level'] != '3' or
+                gene['entity_type'] != 'gene'
+        ):
+            continue
 
-        for gene in gene_data['results']:
-            # or we could use 'Expert Review Green' in 'evidence'
-            if (
-                    gene['confidence_level'] != '3' or
-                    gene['entity_type'] != 'gene'
-            ):
-                continue
+        symbol = gene.get('entity_name')
+        moi = gene.get('mode_of_inheritance')
+        ensg = None
 
-            symbol = gene.get('entity_name')
-            moi = gene.get('mode_of_inheritance')
-            ensg = None
+        # for some reason the build is capitalised oddly in panelapp
+        for build, content in gene['gene_data']['ensembl_genes'].items():
+            if build.lower() == reference_genome.lower():
+                # the ensembl version may alter over time, but will be singular
+                ensg = content[list(content.keys())[0]]['ensembl_id']
 
-            # for some reason the build is capitalised oddly in panelapp
-            for build, content in gene['gene_data']['ensembl_genes'].items():
-                if build.lower() == reference_genome.lower():
-                    # the ensembl version may alter over time, but will be singular
-                    ensg = content[list(content.keys())[0]]['ensembl_id']
-
-            gene_dict[symbol] = {
-                'ensembl': ensg,
-                'moi': moi
-            }
-
-        if gene_data['next']:
-            panel_app_genes_url = gene_data['next']
-        else:
-            break
+        gene_dict[symbol] = {
+            'ensembl': ensg,
+            'moi': moi
+        }
     return gene_dict
 
 
@@ -126,7 +120,10 @@ def main(matrix_in: str, matrix_out: str, reference: str):
     # do builtin variant QC
     annotated_mt = hl.variant_qc(annotated_mt)
 
-    panel_app_dict = get_panelapp_green(reference_genome='GRch38')
+    panel_app_dict = get_panel_green(
+        reference_genome='GRch38',
+        panel_number=137
+    )
     green_genes = obtain_unique_genes(panel_app_dict)
 
     # remove high frequency potential artefacts
@@ -151,7 +148,7 @@ def main(matrix_in: str, matrix_out: str, reference: str):
     )
 
     # a lot of filtering here, so let's repartition
-    annotated_mt = annotated_mt.repartition(100, shuffle=False)
+    annotated_mt = annotated_mt.repartition(120, shuffle=False)
 
     # now write out
     annotated_mt.write(matrix_out, overwrite=True)
