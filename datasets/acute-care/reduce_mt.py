@@ -117,9 +117,21 @@ def main(matrix_in: str, matrix_out: str, reference: str):
     # filter only to PASS (i.e. no filter) variants
     annotated_mt = annotated_mt.filter_rows(annotated_mt.filters.length() == 0)
 
+    # remove one sample with a massive increase in variants
+    annotated_mt = annotated_mt.filter_cols(
+        hl.literal('CPG54353') == (annotated_mt['s']),
+        keep=False
+    )
+
     # do builtin variant QC
     annotated_mt = hl.variant_qc(annotated_mt)
 
+    # remove variants not called in these samples
+    annotated_mt = annotated_mt.filter_rows(
+        annotated_mt.variant_qc.n_non_ref > 0
+    )
+
+    # get panelapp mendeliome genes
     panel_app_dict = get_panel_green(
         reference_genome='GRch38',
         panel_number=137
