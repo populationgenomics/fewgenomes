@@ -75,6 +75,7 @@ def slivar(
     --info 'INFO.impactful && variant.ALT[0] != "*"' \
     | bgzip -c -@ 4 > {j.out_vcf}
     """
+
     j.command(
         hailbatch.wrap_command(
             cmd,
