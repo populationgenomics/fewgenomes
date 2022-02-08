@@ -49,11 +49,9 @@ def main(vcf: str):
     csq_list_resource = batch.read_input(CUSTOM_SLIVAR_CONS)
 
     job.command(
-        f"""\
-        retry_gs_cp {input_vcf_resource} input.vcf.gz
-        retry_gs_cp {csq_list_resource} custom_cons.txt
-        SLIVAR_IMPACTFUL_ORDER=custom_cons.txt slivar expr \
-        --vcf input.vcf.gz \
+        f"""
+        SLIVAR_IMPACTFUL_ORDER={csq_list_resource} slivar expr \
+        --vcf {input_vcf_resource} \
         --pass-only \
         --skip-non-variable \
         --info 'INFO.impactful && variant.ALT[0] != "*"' \
