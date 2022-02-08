@@ -15,7 +15,12 @@ from hailtop.batch.job import Job
 
 from cpg_pipes import hailbatch
 
-SLIVAR_IMAGE = 'australia-southeast1-docker.pkg.dev/cpg-common/images/slivar:v0.2.7'
+SLIVAR_IMAGE = 'australia-southeast1-docker_slivar.pkg.dev/cpg-common/images/slivar:v0.2.7'
+
+# file containing standard slivar csq ordering,
+# plus all sub-consequences added in VEP 105
+# this prevents errors being written for almost every variant
+CUSTOM_SLIVAR_CONS = 'gs://cpg-acute-care-test/vep/custom_slivar_order.txt'
 
 
 @click.command()
@@ -55,24 +60,27 @@ def slivar(
     j.image(SLIVAR_IMAGE)
     hailbatch.STANDARD.set_resources(j, storage_gb=50, mem_gb=50, ncpu=16)
 
+    # once we have the relevant annotations, we can use them individually, e.g.
+    # (INFO.CLIN_SIG == "pathogenic" || INFO.CLIN_SIG == "likely_pathogenic")
+    # (INFO.MAX_AF == "." || INFO.MAX_AF < 0.01)
+    # until then (bcftools split-vep, or using hail fields,
+    # we can only use what we're given by slivar)
+
     cmd = f"""\
     retry_gs_cp {vcf_path} input.vcf.gz
     retry_gs_cp {vcf_path}.tbi input.vcf.gz.tbi
-    SLIVAR_IMPACTFUL_ORDER="$SLIVAR_IMPACTFUL_ORDER" slivar expr \
+    retry_gs_cp {CUSTOM_SLIVAR_CONS} custom_cons.txt
+    SLIVAR_IMPACTFUL_ORDER=custom_cons.txt slivar expr \
     --vcf input.vcf.gz \
     --pass-only \
     --skip-non-variable \
-    --info '
-    (INFO.CLIN_SIG == "pathogenic" || INFO.CLIN_SIG == "likely_pathogenic")
-    && variant.ALT[0] != "*"
-    && (INFO.MAX_AF == "." || INFO.MAX_AF < 0.01)
-    ' \
+    --info 'INFO.impactful && variant.ALT[0] != "*"' \
     | bgzip -c -@ 4 > {j.out_vcf}
     """
     j.command(
         hailbatch.wrap_command(
             cmd,
-            monitor_space=True,
+            setup_gcp=True,
             define_retry_function=True
         )
     )
