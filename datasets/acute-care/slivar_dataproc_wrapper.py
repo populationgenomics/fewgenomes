@@ -1,5 +1,4 @@
-# !/usr/bin/env python3
-
+#!/usr/bin/env python3
 
 """
 script to run slivar commands within a cloud instance
