@@ -25,7 +25,7 @@ CUSTOM_SLIVAR_CONS = 'gs://cpg-acute-care-test/vep/custom_slivar_order.txt'
 @click.command()
 @click.option(
     '--vcf',
-    'vcf_in',
+    'vcf',
     required=True,
 )
 @click.option(
