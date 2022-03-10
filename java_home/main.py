@@ -3,8 +3,6 @@
 import hail as hl
 import os
 
-print(f'HAIL_QUERY_BACKEND={os.getenv("HAIL_QUERY_BACKEND")}')
-
-hl.init(default_reference='GRCh38')
+await hl.init_service(default_reference='GRCh38', billing_project=os.getenv('HAIL_BILLING_PROJECT'))
 hl.import_table('test.csv')
 
