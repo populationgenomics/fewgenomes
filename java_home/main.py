@@ -10,7 +10,7 @@ def init_hail_query_service():
     asyncio.get_event_loop().run_until_complete(hl.init_service(default_reference='GRCh38', billing_project=billing_project, remote_tmpdir=f'gs://{hail_bucket}/batch-tmp'))
 
 init_hail_query_service()
-t = hl.import_table('gs://cpg-fewgenomes-test/benchmark/outputs/NA12340/duplicate-metrics/NA12340-duplicate-metrics.csv')
+t = hl.import_table('gs://cpg-fewgenomes-test/gatk_sv/output/GatherSampleEvidence/NA12878-2/GatherSampleEvidence/1ca67ed3-4220-4e28-bc3d-9e544a6d15c8/call-GatherSampleEvidenceMetrics/GatherSampleEvidenceMetrics/f9124086-2ea0-413e-9bc8-a5404bb6f708/call-CountsMetrics/NA12878-2.raw-counts.tsv')
 t.describe()
 t.show()
 pd = t.to_pandas()
