@@ -14,7 +14,7 @@ t = hl.import_table('gs://cpg-fewgenomes-test/gatk_sv/output/GatherSampleEvidenc
 t.describe()
 t.show()
 pd = t.to_pandas()
-t2 = t.from_pandas(pd)
+t2 = hl.Table.from_pandas(pd)
 t2.describe()
 t2.show()
 
