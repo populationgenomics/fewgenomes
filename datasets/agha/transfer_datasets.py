@@ -45,20 +45,20 @@ def main(
     )
     batch = hb.Batch(f"transfer {DATASET}", backend=sb, default_image=DRIVER_IMAGE)
 
-    output_path = f"gs://cpg-{DATASET}-main-upload/{subfolder}"
+    output_path = f"gs://cpg-{DATASET}-main-upload"
+    if subfolder:
+        output_path = os.path.join(output_path, subfolder)
 
     # may as well batch them to reduce the number of VMs
-    for idx in range(len(presigned_urls) // batch_size + 1):
-        batched_urls = presigned_urls[idx * batch_size : (idx + 1) * batch_size]
+    for idx, url in enumerate(presigned_urls):
 
-        j = batch.new_job(f"batch {idx} (size={len(batched_urls)}")
-        for url in batched_urls:
-            filename = os.path.basename(url).split("?")[0]
-            quoted_url = quote(url)
-            j.command(GCLOUD_ACTIVATE_AUTH)
-            j.command(
-                f"curl -L {quoted_url} | gsutil cp - {os.path.join(output_path, filename)}"
-            )
+        filename = os.path.basename(url).split("?")[0]
+        j = batch.new_job(f"URL {idx} ({filename})")
+        quoted_url = quote(url)
+        j.command(GCLOUD_ACTIVATE_AUTH)
+        j.command(
+            f"curl -L {quoted_url} | gsutil cp - {os.path.join(output_path, filename)}"
+        )
 
     batch.run(wait=False)
 
