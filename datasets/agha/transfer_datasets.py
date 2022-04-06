@@ -9,6 +9,8 @@ from shlex import quote
 import click
 import hailtop.batch as hb
 from cloudpathlib import AnyPath
+from cpg_utils.hail import remote_tmpdir
+
 
 DRIVER_IMAGE = os.getenv("CPG_DRIVER_IMAGE")
 DATASET = os.getenv("CPG_DATASET")
@@ -36,7 +38,11 @@ def main(
     if incorrect_urls:
         raise Exception(f"Incorrect URLs: {incorrect_urls}")
 
-    batch = hb.Batch(f"transfer {DATASET}", default_image=DRIVER_IMAGE)
+    sb = hb.ServiceBackend(
+        billing_project=os.getenv("HAIL_BILLING_PROJECT"),
+        remote_tmpdir=remote_tmpdir(),
+    )
+    batch = hb.Batch(f"transfer {DATASET}", backend=sb, default_image=DRIVER_IMAGE)
 
     output_path = f"gs://cpg-{DATASET}-main-upload/{subfolder}"
 
