@@ -18,7 +18,7 @@ assert DRIVER_IMAGE and DATASET
 
 @click.command("Transfer_datasets from signed URLs")
 @click.option("--presigned-url-file-path")
-@click.option("--batch-size", multiple=True)
+@click.option("--batch-size")
 def main(
     presigned_url_file_path: str,
     batch_size: int = 5,
