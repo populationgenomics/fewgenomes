@@ -28,7 +28,7 @@ def main(
     """
 
     with open(AnyPath(presigned_url_file_path)) as file:
-        presigned_urls = [l.strip() for l in file.readlines()]
+        presigned_urls = [l.strip() for l in file.readlines() if l.strip()]
 
     incorrect_urls = [url for url in presigned_urls if not url.startswith("https://")]
     if incorrect_urls:
