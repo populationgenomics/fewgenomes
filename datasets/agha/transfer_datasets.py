@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 Transfer datasets from presigned URLs to a dataset's GCP main-upload bucket.
 """
@@ -16,7 +17,7 @@ assert DRIVER_IMAGE and DATASET
 
 
 @click.command("Transfer_datasets from signed URLs")
-@click.option("--presigned-url-file-path", multiple=True)
+@click.option("--presigned-url-file-path")
 @click.option("--batch-size", multiple=True)
 def main(
     presigned_url_file_path: str,
@@ -50,8 +51,7 @@ def main(
                 f"curl -L {quoted_url} | gsutil cp - {os.path.join(output_path, filename)}"
             )
 
-    # batch.run(wait=False)
-    batch.run(dry_run=True)
+    batch.run(wait=False)
 
 
 if __name__ == "__main__":
