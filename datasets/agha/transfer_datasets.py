@@ -18,11 +18,12 @@ assert DRIVER_IMAGE and DATASET
 
 @click.command("Transfer_datasets from signed URLs")
 @click.option("--presigned-url-file-path")
-@click.option("--batch-size")
+@click.option("--subfolder", type=str)
+@click.option("--batch-size", type=int, default=5)
 def main(
     presigned_url_file_path: str,
-    batch_size: int = 5,
     subfolder: Optional[str] = None,
+    batch_size: int = 5,
 ):
     """
     Given a list of presigned URLs, download the files and upload them to GCS.
@@ -40,7 +41,7 @@ def main(
     output_path = f"gs://cpg-{DATASET}-main-upload/{subfolder}"
 
     # may as well batch them to reduce the number of VMs
-    for idx in range(len(presigned_urls) // batch_size):
+    for idx in range(len(presigned_urls) // batch_size + 1):
         batched_urls = presigned_urls[idx * batch_size : (idx + 1) * batch_size]
 
         j = batch.new_job(f"batch {idx} (size={len(batched_urls)}")
