@@ -10,6 +10,7 @@ import click
 import hailtop.batch as hb
 from cloudpathlib import AnyPath
 from cpg_utils.hail import remote_tmpdir
+from analysis_runner.constants import GCLOUD_ACTIVATE_AUTH
 
 
 DRIVER_IMAGE = os.getenv("CPG_DRIVER_IMAGE")
@@ -54,6 +55,7 @@ def main(
         for url in batched_urls:
             filename = os.path.basename(url).split("?")[0]
             quoted_url = quote(url)
+            j.command(GCLOUD_ACTIVATE_AUTH)
             j.command(
                 f"curl -L {quoted_url} | gsutil cp - {os.path.join(output_path, filename)}"
             )
