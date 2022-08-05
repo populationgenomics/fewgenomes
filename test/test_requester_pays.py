@@ -86,7 +86,7 @@ hl.init_batch(
     remote_tmpdir=remote_tmpdir(),
 )
 
-mt = hl.read_matrix_table('gs://cpg-fewgenomes-test/mt')
+mt = hl.read_matrix_table('gs://cpg-fewgenomes-test/mt/v1.mt/')
 
 mt.show()
 EOF
