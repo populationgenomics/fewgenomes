@@ -89,7 +89,7 @@ mt = hl.read_matrix_table('gs://cpg-fewgenomes-test/mt/v1.mt/')
 mt.show()
 EOF
 
-python script.py
+python3 script.py
 """
     )
 
