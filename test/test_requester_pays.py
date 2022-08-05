@@ -78,13 +78,11 @@ if JOBS_HAIL_QUERY in jobs:
     j_hq.command(
         f"""
 cat > script.py <<EOF 
+
+from cpg_utils.hail_batch import init_batch
 import hail as hl
 
-hl.init_batch(
-    default_reference="GRCh38",
-    billing_project=get_config()["hail"]["billing_project"],
-    remote_tmpdir=remote_tmpdir(),
-)
+init_batch()
 
 mt = hl.read_matrix_table('gs://cpg-fewgenomes-test/mt/v1.mt/')
 
