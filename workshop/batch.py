@@ -13,7 +13,10 @@ name = 'YOURNAME'
 b = hb.Batch(name=f'{name}: Hello Batch', backend=sb)
 
 job = b.new_bash_job('Print my name')
+job_output_1 = job.my_tdout
+job.command(f'echo "Hello, {name}!" > {job_output_1}')
 
-job.command(f'echo "Hello, {name}!"')
+job2 = b.new_bash_job('Print contents of job1')
+job2.command(f'cat {job_output_1}')
 
 b.run(wait=False)
