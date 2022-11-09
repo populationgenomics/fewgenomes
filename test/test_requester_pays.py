@@ -2,7 +2,7 @@
 import os
 from shlex import quote
 
-from cpg_utils.hail_batch import copy_common_env, get_config, remote_tmpdir
+from cpg_utils.hail_batch import copy_common_env, get_config, remote_tmpdir, init_batch
 import hailtop.batch as hb
 
 config = get_config()
@@ -31,10 +31,6 @@ jobs = [
     JOBS_HAIL_QUERY,
 ]
 
-
-# sb = hb.ServiceBackend(
-#     billing_project='michaelfranklin-trial', remote_tmpdir='gs://cpg-michael-hail-dev/tmp/'
-# )
 sb = hb.ServiceBackend(
     billing_project=config["hail"]["billing_project"],
     remote_tmpdir=remote_tmpdir(),
@@ -79,10 +75,16 @@ if JOBS_HAIL_QUERY in jobs:
         f"""
 cat > script.py <<EOF 
 
-from cpg_utils.hail_batch import init_batch
+import asyncio
 import hail as hl
 
-init_batch()
+asyncio.get_event_loop().run_until_complete(
+    hl.init_batch(
+        default_reference="GRCh38",
+        billing_project='fewgenomes',
+        remote_tmpdir=remote_tmpdir(),
+    )
+)
 
 mt = hl.read_matrix_table('gs://cpg-fewgenomes-test/mt/v1.mt/')
 
