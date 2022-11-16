@@ -12,7 +12,7 @@ sb = hb.ServiceBackend(
 name = 'Cas'
 b = hb.Batch(name=f'{name}: Hello Batch', backend=sb)
 
-job = b.new_bash_command('Print my name')
+job = b.new_bash_job('Print my name')
 job.command(f'echo "Hi {name}, you rock"')
 
 b.run(wait=False)
