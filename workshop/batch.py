@@ -9,8 +9,11 @@ sb = hb.ServiceBackend(
     remote_tmpdir=remote_tmpdir(),
 )
 
-name = 'YOURNAME'
+name = 'VivianBakiris'
 b = hb.Batch(name=f'{name}: Hello Batch', backend=sb)
+
+job = b.new_batch_job('Print my name, please')
+job.command(f'echo "Hello {name}"')
 
 # your code here
 
