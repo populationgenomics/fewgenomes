@@ -16,6 +16,6 @@ b = hb.Batch(name=f'{name}: Hello Batch', backend=sb)
 
 job = b.new_bash_job('Print my name')
 
-job.command(f'echo "Hello, (name)!"')
+job.command(f'echo "Hello, {name}!"')
 
 b.run(wait=False)
