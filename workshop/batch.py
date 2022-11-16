@@ -13,5 +13,7 @@ name = 'YOURNAME'
 b = hb.Batch(name=f'{name}: Hello Batch', backend=sb)
 
 # your code here
+job = b.new_batch('Print my name')
+job.command(f'echo "Hello, {name}!"')
 
 b.run(wait=False)
