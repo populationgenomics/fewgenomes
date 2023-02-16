@@ -24,6 +24,9 @@ TMP_FASTQ1="R1.fastq.gz"
 TMP_FASTQ2="R2.fastq.gz"
 REFERENCE="gs://cpg-common-main/references/hg38/v0/Homo_sapiens_assembly38.fasta"
 
+# Required by samtools to be able to read from GCS.
+GCS_OAUTH_TOKEN=$(gcloud auth application-default print-access-token)
+export GCS_OAUTH_TOKEN
 
 for SAMPLE in "${SAMPLES[@]}"; do
     echo "*** $SAMPLE ***"
