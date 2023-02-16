@@ -25,8 +25,13 @@ REFERENCE="gs://cpg-common-main/references/hg38/v0/Homo_sapiens_assembly38.fasta
 GCS_OAUTH_TOKEN=$(gcloud auth application-default print-access-token)
 export GCS_OAUTH_TOKEN
 
+# Localize the reference once.
+gcloud storage cp "$REFERENCE" "$REFERENCE.fai" .
+
 for SAMPLE in "${SAMPLES[@]}"; do
     # Extract a genomic interval from the CRAM, then convert to FASTQs.
-    samtools view -L <(echo "$BED_INTERVAL") -b -T "$REFERENCE" "$CRAM_PREFIX/$SAMPLE.cram" | \
-    samtools bam2fq -1 "$OUTPUT_PREFIX/$SAMPLE.R1.fastq.gz" -2 "$OUTPUT_PREFIX/$SAMPLE.R2.fastq.gz"
+    samtools view -L <(echo "$BED_INTERVAL") -b -T "$(basename $REFERENCE)" "$CRAM_PREFIX/$SAMPLE.cram" | \
+    samtools bam2fq -1 "$SAMPLE.R1.fastq.gz" -2 "$SAMPLE.R2.fastq.gz"
+    # Writing to GCS directly seems problematic, so copy over temporary local files.
+    gcloud storage mv "$SAMPLE.R?.fastq.gz" "$OUTPUT_PREFIX/"
 done
