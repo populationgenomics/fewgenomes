@@ -14,7 +14,7 @@
 
 set -ex
 
-SAMPLES=NA12340 NA12489 NA12878 NA12891 NA12892
+SAMPLES=(NA12340 NA12489 NA12878 NA12891 NA12892)
 CRAM_PREFIX="gs://cpg-fewgenomes-test/cram"
 OUTPUT_PREFIX="gs://cpg-fewgenomes-test/small_fastqs"
 # FLRT2 gene, but there's no significance to that.
@@ -24,7 +24,7 @@ TMP_FASTQ1="R1.fastq.gz"
 TMP_FASTQ2="R2.fastq.gz"
 
 
-for SAMPLE in $SAMPLES; do
+for SAMPLE in "${SAMPLES[@]}"; do
     echo "*** $SAMPLE ***"
     # Extract a genomic interval from the CRAM.
     samtools view -L <(echo "$BED_INTERVAL") -b "$TMP_BAM" "$CRAM_PREFIX/$SAMPLE.cram"
