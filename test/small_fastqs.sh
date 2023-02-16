@@ -26,7 +26,7 @@ GCS_OAUTH_TOKEN=$(gcloud auth application-default print-access-token)
 export GCS_OAUTH_TOKEN
 
 # Need this for the `cp` below.
-pip install google-crc32c
+"$MAMBA_ROOT_PREFIX/bin/python" -m pip install google-crc32c
 
 # Localize the reference once.
 gcloud storage cp "$REFERENCE" "$REFERENCE.fai" .
