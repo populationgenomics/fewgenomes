@@ -22,12 +22,13 @@ BED_INTERVAL="chr14 85530143 85654428"
 TMP_BAM="tmp.bam"
 TMP_FASTQ1="R1.fastq.gz"
 TMP_FASTQ2="R2.fastq.gz"
+REFERENCE="gs://cpg-common-main/references/hg38/v0/Homo_sapiens_assembly38.fasta"
 
 
 for SAMPLE in "${SAMPLES[@]}"; do
     echo "*** $SAMPLE ***"
     # Extract a genomic interval from the CRAM.
-    samtools view -L <(echo "$BED_INTERVAL") -b "$TMP_BAM" "$CRAM_PREFIX/$SAMPLE.cram"
+    samtools view -L <(echo "$BED_INTERVAL") -b -o "$TMP_BAM" -T "$REFERENCE" "$CRAM_PREFIX/$SAMPLE.cram"
     # Convert to FASTQs.
     samtools bam2fq -1 "$TMP_FASTQ1" -2 "$TMP_FASTQ2" "$TMP_BAM"
     # Copy to output folder.
