@@ -21,14 +21,13 @@ OUTPUT_PREFIX="gs://cpg-fewgenomes-test/small_fastqs"
 BED_INTERVAL="chr14 85530143 85654428"
 REFERENCE="gs://cpg-common-main/references/hg38/v0/Homo_sapiens_assembly38.fasta"
 
-# Required by samtools to be able to read from GCS.
-GCS_OAUTH_TOKEN=$(gcloud auth application-default print-access-token)
-export GCS_OAUTH_TOKEN
-
 # Localize the reference once.
 gsutil -m cp "$REFERENCE" "$REFERENCE.fai" .
 
 for SAMPLE in "${SAMPLES[@]}"; do
+    # Required by samtools to be able to read from GCS. Refresh this regularly.
+    GCS_OAUTH_TOKEN=$(gcloud auth application-default print-access-token)
+    export GCS_OAUTH_TOKEN
     # Extract a genomic interval from the CRAM, then convert to FASTQs.
     samtools view -L <(echo "$BED_INTERVAL") -b -T "$(basename $REFERENCE)" "$CRAM_PREFIX/$SAMPLE.cram" | \
     samtools bam2fq -1 "$SAMPLE.R1.fastq.gz" -2 "$SAMPLE.R2.fastq.gz"
