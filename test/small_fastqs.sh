@@ -25,6 +25,9 @@ REFERENCE="gs://cpg-common-main/references/hg38/v0/Homo_sapiens_assembly38.fasta
 GCS_OAUTH_TOKEN=$(gcloud auth application-default print-access-token)
 export GCS_OAUTH_TOKEN
 
+# Need this for the `cp` below.
+pip install google-crc32c
+
 # Localize the reference once.
 gcloud storage cp "$REFERENCE" "$REFERENCE.fai" .
 
