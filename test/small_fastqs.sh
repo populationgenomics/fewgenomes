@@ -25,16 +25,13 @@ REFERENCE="gs://cpg-common-main/references/hg38/v0/Homo_sapiens_assembly38.fasta
 GCS_OAUTH_TOKEN=$(gcloud auth application-default print-access-token)
 export GCS_OAUTH_TOKEN
 
-# Need this for the `cp` below.
-"$MAMBA_ROOT_PREFIX/bin/python" -m pip install google-crc32c
-
 # Localize the reference once.
-gcloud storage cp "$REFERENCE" "$REFERENCE.fai" .
+gsutil -m cp "$REFERENCE" "$REFERENCE.fai" .
 
 for SAMPLE in "${SAMPLES[@]}"; do
     # Extract a genomic interval from the CRAM, then convert to FASTQs.
     samtools view -L <(echo "$BED_INTERVAL") -b -T "$(basename $REFERENCE)" "$CRAM_PREFIX/$SAMPLE.cram" | \
     samtools bam2fq -1 "$SAMPLE.R1.fastq.gz" -2 "$SAMPLE.R2.fastq.gz"
     # Writing to GCS directly seems problematic, so copy over temporary local files.
-    gcloud storage mv "$SAMPLE.R?.fastq.gz" "$OUTPUT_PREFIX/"
+    gsutil -m mv "$SAMPLE.R?.fastq.gz" "$OUTPUT_PREFIX/"
 done
