@@ -29,8 +29,10 @@ for SAMPLE in "${SAMPLES[@]}"; do
     GCS_OAUTH_TOKEN=$(gcloud auth application-default print-access-token)
     export GCS_OAUTH_TOKEN
     # Extract a genomic interval from the CRAM, then convert to FASTQs.
+    # https://www.metagenomics.wiki/tools/samtools/converting-bam-to-fastq
     samtools view -L <(echo "$BED_INTERVAL") -b -T "$(basename $REFERENCE)" "$CRAM_PREFIX/$SAMPLE.cram" | \
-    samtools bam2fq -1 "$SAMPLE.R1.fastq.gz" -2 "$SAMPLE.R2.fastq.gz"
-    # Writing to GCS directly seems problematic, so copy over temporary local files.
+    samtools sort -n | \
+    samtools fastq -1 "$SAMPLE.R1.fastq.gz" -2 "$SAMPLE.R2.fastq.gz" -0 /dev/null -s /dev/null -n
+    # Writing to GCS directly seems problematic, so copy temporary local files instead.
     gsutil -m mv "$SAMPLE.R?.fastq.gz" "$OUTPUT_PREFIX/"
 done
